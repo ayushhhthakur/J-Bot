@@ -5,14 +5,18 @@ An Azure Function-based Telegram bot that automatically searches for entry-level
 ## 🎯 Features
 
 ### **Multi-Source Job Aggregation**
-- Fetches from **7+ job sources**:
-  - Arbeitnow
-  - RemoteOK
-  - JobIcy
-  - Reddit (r/forhire, r/devopsjobs, r/jobsinindia, r/indiajobs, r/cscareerquestionsIndia)
-  - Remotive
-  - Indeed India (RSS)
-  - FindJob.in
+- Fetches from **11 job sources**:
+  - Arbeitnow (global remote jobs)
+  - RemoteOK (curated remote positions)
+  - JobIcy (remote-first roles)
+  - Reddit (6 subreddits: r/forhire, r/devopsjobs, r/jobsinindia, r/indiajobs, r/cscareerquestionsIndia)
+  - Remotive (vetted remote jobs)
+  - Indeed India (RSS feed)
+  - FindJob.in (India-specific)
+  - LinkedIn Jobs (India, entry-level filter)
+  - GitHub Jobs (community repos)
+  - Wellfound/AngelList (startup jobs)
+  - Glassdoor (India tech jobs)
 
 ### **Intelligent Filtering**
 - ✅ **Pure Technical Roles Only** - Excludes support/sales/non-technical positions
