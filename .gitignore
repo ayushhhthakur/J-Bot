@@ -1,11 +1,40 @@
+# Dependencies
 node_modules
-.vscode
+package-lock.json
+
+# Build outputs
 dist
 build
-*.log
-.env
-.DS_Store
-coverage
-.idea
-package-lock.json
+
+# Azure Functions
+local.settings.json
 j-bot.PublishSettings
+.funcignore
+
+# Azurite (local storage emulator)
+__azurite_db_*.json
+__blobstorage__
+__queuestorage__
+AzuriteConfig
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.vscode
+.idea
+.DS_Store
+
+# Testing
+coverage
+*.test.js.snap
+local.settings.example.json
+local.settings.json
+local.settings.json

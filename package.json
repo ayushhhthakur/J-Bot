@@ -1,14 +1,21 @@
 {
-  "name": "",
+  "name": "j-bot",
   "version": "1.0.0",
-  "description": "",
+  "description": "Intelligent Telegram Job Alert Bot for Azure/Cloud/Security roles in India - fetches from multiple sources, filters for freshers, and sends smart notifications",
   "main": "src/functions/*.js",
+  "author": "Ayush Thakur",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "func start",
     "test": "echo \"No tests yet...\""
   },
   "dependencies": {
-    "@azure/functions": "^4.0.0"
+    "@azure/functions": "^4.0.0",
+    "@azure/data-tables": "^13.2.2",
+    "axios": "^1.6.7"
   },
   "devDependencies": {
     "azure-functions-core-tools": "^4.x"
