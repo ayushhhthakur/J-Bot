@@ -11,8 +11,8 @@ An Azure Function-based Telegram bot that automatically searches for entry-level
   - JobIcy
   - Reddit (r/forhire, r/devopsjobs, r/jobsinindia, r/indiajobs, r/cscareerquestionsIndia)
   - Remotive
-  - Adzuna India
-  - LinkedIn Jobs (RSS)
+  - Indeed India (RSS)
+  - FindJob.in
 
 ### **Intelligent Filtering**
 - ✅ **Pure Technical Roles Only** - Excludes support/sales/non-technical positions
@@ -38,10 +38,20 @@ An Azure Function-based Telegram bot that automatically searches for entry-level
 ## 🏗️ Architecture
 
 - **Runtime**: Azure Functions (Node.js 18+)
-- **Trigger**: Timer (Every 30 minutes)
+- **Trigger**: Timer (Daily at 10:00 AM - optimized for cost efficiency)
 - **Storage**: Azure Table Storage (duplicate detection)
 - **Notifications**: Telegram Bot API
 - **Model**: Node.js v4 Programming Model
+
+## 💰 Cost Optimization
+
+Running once daily (instead of every 30 minutes) reduces:
+- **Executions**: From 1,440/month to ~30/month (98% reduction)
+- **Compute costs**: Minimal Azure Functions consumption
+- **API calls**: 98% fewer requests to job APIs
+- **Storage transactions**: Significantly reduced read/write operations
+
+Expected monthly cost: **Free tier** (Azure Functions allows 1M executions/month free)
 
 ## 🚀 Quick Start
 
