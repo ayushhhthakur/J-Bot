@@ -1088,7 +1088,7 @@ ${relevanceIndicator}
  */
 app.timer('jobChecker', {
     schedule: '0 30 4 * * *', // 10:00 AM IST = 4:30 AM UTC
-    runOnStartup: true,
+    runOnStartup: false,
     handler: async (myTimer, context) => {
         const startTime = new Date();
         context.log('\n' + '='.repeat(50));
