@@ -5,7 +5,7 @@
  * in India from multiple sources and sends intelligent Telegram notifications.
  * 
  * @module jobChecker
- * @description Timer-triggered function (runs daily at 10 AM) that:
+ * @description Timer-triggered function (runs daily at 10:00 AM IST) that:
  *   - Fetches jobs from 11 sources (Arbeitnow, RemoteOK, JobIcy, Reddit, Remotive, Indeed, FindJob.in, LinkedIn, GitHub, Wellfound, Glassdoor)
  *   - Filters for pure technical roles only (no support/sales)
  *   - Targets entry-level positions with 0-2 years of experience
@@ -1087,8 +1087,8 @@ ${relevanceIndicator}
  * Main job checker handler
  */
 app.timer('jobChecker', {
-    schedule: '0 0 10 * * *', 
-    runOnStartup: true, // Disabled to prevent duplicate triggers
+    schedule: '0 30 4 * * *', // 10:00 AM IST = 4:30 AM UTC
+    runOnStartup: true,
     handler: async (myTimer, context) => {
         const startTime = new Date();
         context.log('\n' + '='.repeat(50));

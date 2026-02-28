@@ -163,10 +163,12 @@ Edit `src/functions/jobChecker.js`:
 ### Change Schedule
 
 ```javascript
-schedule: '0 0 10 * * *'  // Daily at 10 AM (default)
+schedule: '0 30 4 * * *'  // Daily at 10:00 AM IST (4:30 UTC) - default
 schedule: '0 */30 * * * *'  // Every 30 minutes
 schedule: '0 0 */2 * * *'  // Every 2 hours
 ```
+
+**Note:** Azure Functions use UTC time. IST = UTC + 5:30
 
 ## 🏆 How It Works
 
