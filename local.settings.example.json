@@ -1,0 +1,14 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "WEBSITE_NODE_DEFAULT_VERSION": "~20",
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "TELEGRAM_BOT_TOKEN": "YOUR_BOT_TOKEN_HERE",
+    "TELEGRAM_CHAT_ID": "YOUR_CHAT_ID_HERE",
+    "JOB_WINDOW": "DAY",
+    "ADZUNA_APP_ID": "your_adzuna_app_id_here",
+    "ADZUNA_APP_KEY": "your_adzuna_app_key_here",
+    "RAPIDAPI_KEY": "your_rapidapi_key_here"
+  }
+}

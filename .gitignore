@@ -35,6 +35,4 @@ yarn-error.log*
 # Testing
 coverage
 *.test.js.snap
-local.settings.example.json
-local.settings.json
-local.settings.json
+

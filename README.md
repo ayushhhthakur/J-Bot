@@ -1,85 +1,43 @@
 # J-Bot - Intelligent Job Alert Bot 🤖
 
-An Azure Function-based Telegram bot that automatically searches for entry-level Azure/Cloud/Security jobs in India from multiple sources and sends intelligent notifications.
+Azure Function-based Telegram bot that searches for entry-level Azure/Cloud/Security jobs in India from 11 sources and sends smart notifications daily.
 
 ## 🎯 Features
 
-### **Multi-Source Job Aggregation**
-- Fetches from **11 job sources**:
-  - Arbeitnow (global remote jobs)
-  - RemoteOK (curated remote positions)
-  - JobIcy (remote-first roles)
-  - Reddit (6 subreddits: r/forhire, r/devopsjobs, r/jobsinindia, r/indiajobs, r/cscareerquestionsIndia)
-  - Remotive (vetted remote jobs)
-  - Indeed India (RSS feed)
-  - FindJob.in (India-specific)
-  - LinkedIn Jobs (India, entry-level filter)
-  - GitHub Jobs (community repos)
-  - Wellfound/AngelList (startup jobs)
-  - Glassdoor (India tech jobs)
+- **11 Job Sources**: Arbeitnow, RemoteOK, JobIcy, Reddit (6 subreddits), Remotive, Adzuna India, JSearch (LinkedIn/Indeed/Glassdoor), The Muse, FindJob.in, Wellfound, Freshteam
+- **Smart Filtering**: Pure technical roles only, 0-2 years experience, India locations
+- **Relevance Scoring**: Jobs ranked by keywords, company reputation, recency, salary transparency
+- **Telegram Alerts**: Clean, concise job notifications with all essential info
+- **Duplicate Prevention**: Azure Table Storage + in-memory deduplication
+- **Time Windows**: Configurable (1 day / 7 days / 30 days)
+- **Cost Efficient**: Runs daily at 10 AM IST (free tier)
 
-### **Intelligent Filtering**
-- ✅ **Pure Technical Roles Only** - Excludes support/sales/non-technical positions
-- ✅ **Entry-Level Focus** - Filters for Intern, Junior, Fresher, Graduate positions
-- ✅ **India Locations** - Bangalore, Pune, Gurgaon, Delhi NCR, Hyderabad, Jaipur, Noida
-- ✅ **Fresher-Friendly Companies** - 80+ companies known to hire freshers
-- ✅ **Keyword Matching** - Azure, Cloud, Security, Cybersecurity, DevSecOps
-- ✅ **Experience Exclusion** - Automatically excludes Senior, Lead, Manager, 3+ years roles
+## 🏗️ Tech Stack
 
-### **Smart Notifications**
-- 📱 Sends formatted Telegram messages with:
-  - Job Title & Company
-  - Location & Source
-  - Role Category (verified technical)
-  - Experience Requirements
-  - Skills Detected
-  - Salary Information
-  - Direct Apply Link
-- 🎯 Sends up to 6 best matches per trigger
-- 🔔 Startup notification when bot begins searching
-- 🚫 Duplicate prevention using Azure Table Storage
-
-## 🏗️ Architecture
-
-- **Runtime**: Azure Functions (Node.js 18+)
-- **Trigger**: Timer (Daily at 10:00 AM - optimized for cost efficiency)
-- **Storage**: Azure Table Storage (duplicate detection)
-- **Notifications**: Telegram Bot API
-- **Model**: Node.js v4 Programming Model
-
-## 💰 Cost Optimization
-
-Running once daily (instead of every 30 minutes) reduces:
-- **Executions**: From 1,440/month to ~30/month (98% reduction)
-- **Compute costs**: Minimal Azure Functions consumption
-- **API calls**: 98% fewer requests to job APIs
-- **Storage transactions**: Significantly reduced read/write operations
-
-Expected monthly cost: **Free tier** (Azure Functions allows 1M executions/month free)
+- Azure Functions (Node.js 20+ / v4 Programming Model)
+- Azure Table Storage (duplicate tracking)
+- Telegram Bot API
+- Timer Trigger (Daily at 10:00 AM IST)
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- Node.js 18 or higher
+- Node.js 20+
 - Azure Functions Core Tools v4
-- Azure Storage Account (or Azurite for local dev)
-- Telegram Bot Token
+- Telegram Bot (get token from [@BotFather](https://t.me/botfather))
+- Telegram Chat ID (get from [@userinfobot](https://t.me/userinfobot))
 
 ### Installation
 
-1. **Clone the repository**
+1. **Clone and install**
    ```bash
    git clone https://github.com/yourusername/j-bot.git
    cd j-bot
-   ```
-
-2. **Install dependencies**
-   ```bash
    npm install
    ```
 
-3. **Configure local settings**
+2. **Configure settings**
    
    Create `local.settings.json`:
    ```json
@@ -87,170 +45,195 @@ Expected monthly cost: **Free tier** (Azure Functions allows 1M executions/month
      "IsEncrypted": false,
      "Values": {
        "FUNCTIONS_WORKER_RUNTIME": "node",
-       "WEBSITE_NODE_DEFAULT_VERSION": "~20",
        "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-       "TELEGRAM_BOT_TOKEN": "your_telegram_bot_token_here",
-       "TELEGRAM_CHAT_ID": "your-chat-id-here"
+       "TELEGRAM_BOT_TOKEN": "your_bot_token",
+       "TELEGRAM_CHAT_ID": "your_chat_id",
+       "JOB_WINDOW": "MONTH"
      }
    }
    ```
 
-4. **Get Telegram credentials**
-   - Create bot: Talk to [@BotFather](https://t.me/botfather)
-   - Get chat ID: Talk to [@userinfobot](https://t.me/userinfobot)
+### ⚡ Running Locally (IMPORTANT)
 
-5. **Start Azurite (for local testing)**
-   ```bash
-   azurite
-   ```
+**Your Azure Function requires Azure Storage even locally.**
 
-6. **Run locally**
-   ```bash
-   npm start
-   ```
+Timer triggers need storage for:
+- Schedule locking
+- Execution tracking  
+- Duplicate detection
 
-## 📦 Deployment
+#### Option 1: Azurite (Recommended)
 
-### Deploy to Azure
+**Install Azurite globally**
+```bash
+npm install -g azurite
+```
 
-1. **Create Azure Function App**
+**Start Azurite** (keep running in separate terminal)
+```bash
+azurite
+```
+
+You should see:
+```
+Azurite Blob service is listening on 127.0.0.1:10000
+Azurite Queue service is listening on 127.0.0.1:10001
+Azurite Table service is listening on 127.0.0.1:10002
+```
+
+**Then run your function**
+```bash
+npm start
+```
+
+#### Option 2: Use Azure Storage Account
+
+Update `local.settings.json`:
+```json
+"AzureWebJobsStorage": "DefaultEndpointsProtocol=https;AccountName=your-account;AccountKey=your-key;EndpointSuffix=core.windows.net"
+```
+
+### 🔍 Troubleshooting
+
+**Error: "connect ECONNREFUSED 127.0.0.1:10000"**
+- **Cause**: Azurite is not running
+- **Fix**: Start Azurite in a separate terminal (`azurite`)
+
+**Function crashes on startup**
+- Check Azurite is running on port 10000
+- Verify `local.settings.json` has correct `AzureWebJobsStorage`
+
+## 📦 Deployment to Azure
+
+1. **Create Function App**
    ```bash
    az functionapp create \
      --resource-group J-Bot \
      --consumption-plan-location centralindia \
      --runtime node \
-     --runtime-version 18 \
+     --runtime-version 20 \
      --functions-version 4 \
      --name j-bot \
-     --storage-account <storage-account-name>
+     --storage-account <storage-account>
    ```
 
-2. **Configure Application Settings**
+2. **Configure Environment Variables**
    ```bash
    az functionapp config appsettings set \
      --name j-bot \
      --resource-group J-Bot \
      --settings \
-     TELEGRAM_BOT_TOKEN="your-bot-token" \
+     TELEGRAM_BOT_TOKEN="your-token" \
      TELEGRAM_CHAT_ID="your-chat-id" \
-     WEBSITE_NODE_DEFAULT_VERSION="~20"
+     JOB_WINDOW="MONTH"
    ```
 
-3. **Deploy using GitHub Actions**
-   - Push to `main` branch
-   - GitHub Actions will automatically deploy
-   - Ensure `AZURE_CREDENTIALS` secret is configured in repository settings
+3. **Deploy**
+   ```bash
+   func azure functionapp publish j-bot
+   ```
 
-## 🔧 Configuration
+## ⚙️ Configuration
 
-### Job Filter Configuration
+### Time Window
 
-Edit in `src/functions/jobChecker.js`:
-
-```javascript
-// Keywords to include
-const INCLUDE_KEYWORDS = ['Azure', 'Cloud', 'Security', 'Cybersecurity', 'DevSecOps'];
-
-// Entry-level indicators
-const ENTRY_LEVEL_KEYWORDS = ['Intern', 'Internship', 'Junior', 'Entry', 'Fresher', 'Graduate', '0-1 year', '0 year'];
-
-// Locations in India
-const PREFERRED_CITIES = ['Bangalore', 'Bengaluru', 'Pune', 'Gurgaon', 'Gurugram', 'Delhi', 'NCR', 'Hyderabad', 'Jaipur', 'Noida'];
-
-// Maximum jobs per trigger
-const MAX_JOBS = 6;
+Set in `local.settings.json`:
+```json
+"JOB_WINDOW": "DAY"    // Options: DAY (1 day), WEEK (7 days), MONTH (30 days)
 ```
 
-### Schedule Configuration
+### API Keys (Optional)
 
-Change timer trigger in `src/functions/jobChecker.js`:
-
-```javascript
-app.timer('jobChecker', {
-    schedule: '0 */30 * * * *', // Every 30 minutes
-    handler: async (myTimer, context) => {
-        // ...
-    }
-});
+For more job sources:
+```json
+"ADZUNA_APP_ID": "your_id",
+"ADZUNA_APP_KEY": "your_key",
+"RAPIDAPI_KEY": "your_key"
 ```
 
-Cron expression format:
-- `0 */30 * * * *` - Every 30 minutes
-- `0 0 */2 * * *` - Every 2 hours
-- `0 0 9 * * *` - Every day at 9 AM
+Bot works without these - 7 sources are free, 4 require API keys.
 
-## 📊 Technical Details
+### Modify Filters
+
+Edit `src/functions/jobChecker.js`:
+- `INCLUDE_KEYWORDS` - Job keywords to match
+- `PREFERRED_CITIES` - India locations
+- `FRESHER_FRIENDLY_COMPANIES` - Target companies
+
+### Change Schedule
+
+```javascript
+schedule: '0 0 10 * * *'  // Daily at 10 AM (default)
+schedule: '0 */30 * * * *'  // Every 30 minutes
+schedule: '0 0 */2 * * *'  // Every 2 hours
+```
+
+## 🏆 How It Works
 
 ### Job Filtering Pipeline
 
-1. **Location Check** - Must be in India/preferred cities
-2. **Company Check** - Must be from fresher-friendly companies (or Reddit post)
-3. **Experience Exclusion** - No 3+/5+ years, Senior, Lead, Manager
-4. **Non-Technical Exclusion** - No support/sales/operations roles
-5. **Pure Technical Validation** - Must contain technical role keywords
-6. **Required Keywords** - Must have Azure/Cloud/Security keywords
-7. **Entry-Level Validation** - Must indicate fresher/entry-level
+1. **Location** - India cities only
+2. **Experience** - Excludes 3+ years, Senior, Lead  
+3. **Role Type** - Pure technical only (no support/sales)
+4. **Keywords** - Must have Azure/Cloud/Security terms
+5. **Entry Level** - 0-2 years experience
+6. **Scoring** - Ranks by relevance (0-150 points)
+7. **Selection** - Sends all matching jobs
 
-### Message Format
+### Relevance Scoring
+
+**Score Factors:**
+- Azure (+30) | Cloud (+20) | Security (+20) | DevSecOps (+25)
+- Fresher/Intern (+20) | Entry Level (+15)
+- Known companies (+15)
+- Recent posts: Today (+20), ≤3 days (+10)
+- Salary disclosed (+10)
+- Preferred cities (+5-8)
+
+**Rating:**
+- ⭐⭐⭐⭐⭐ Excellent (100+)
+- ⭐⭐⭐⭐ Great (80-99)
+- ⭐⭐⭐ Good (60-79)
+- ⭐⭐ Fair (40-59)
+- ⭐ Basic (<40)
+
+### Telegram Message Format
 
 ```
-🔥 Job Title (Bold)
+🔥 [Job Title]
 
-🏢 Company: Company Name
-📍 Location: City, India
-📊 Source: Job Board
-💼 Job Type: Full-time
-⚙️ Role Category: Software Engineer ✅ (Pure Technical)
+🏢 [Company]
+📍 [Location]
+💼 [Job Type] | [Experience]
+💰 [Salary]
 
-👨‍💼 Experience: Entry Level / Fresher
-🛠️ Skills: Azure, Python, Docker, Kubernetes
-💰 Salary: ₹5-8 LPA or Not disclosed
-
-🧠 Why matched: Azure keyword detected
-🔗 Apply: [Direct Link]
+⭐⭐⭐⭐⭐ Excellent Match
+🔗 [Apply Link]
 ```
 
 ## 📁 Project Structure
 
 ```
 J-Bot/
-├── .github/
-│   └── workflows/
-│       └── deploy.yml          # GitHub Actions CI/CD
 ├── src/
 │   └── functions/
-│       └── jobChecker.js       # Main bot logic
-├── host.json                   # Azure Functions host config
-├── package.json                # Dependencies
-├── .gitignore                  # Git ignore rules
-└── README.md                   # This file
+│       └── jobChecker.js      # Main bot
+├── host.json                  # Function config
+├── local.settings.json        # Local env vars
+├── package.json               # Dependencies
+└── README.md                  # Documentation
 ```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
 
 ## 📝 License
 
-This project is licensed under the MIT License.
+MIT License - Feel free to use and modify
 
-## 🙏 Acknowledgments
+## 🙏 Credits
 
-- Job data provided by Arbeitnow, RemoteOK, JobIcy, Remotive, Adzuna, Reddit communities
-- Built with Azure Functions and Telegram Bot API
+Job data from: Arbeitnow, RemoteOK, JobIcy, Remotive, Adzuna, JSearch, The Muse, FindJob.in, Wellfound, Freshteam, Reddit communities
 
-## ⚠️ Disclaimer
-
-This bot aggregates publicly available job postings. Always verify job details directly with the employer before applying.
-
-## 📧 Support
-
-For issues or questions, please open an issue on GitHub.
+Built with: Azure Functions, Telegram Bot API, Node.js
 
 ---
 
-Made with ❤️ for job seekers in India
+**Made for job seekers in India** 🇮🇳
