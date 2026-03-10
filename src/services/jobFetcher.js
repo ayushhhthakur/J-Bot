@@ -18,8 +18,22 @@ async function fetchJobsFromAllSources(context) {
         try {
             context.log(`📡 Fetching jobs from ${source.name}...`);
             
-            // Handle URL as function or string
-            const url = typeof source.url === 'function' ? source.url() : source.url;
+            // Handle URL as function (including async), string, or precomputed data
+            let url = source.url;
+            let jobs = [];
+            
+            if (typeof url === 'function') {
+                // Execute function (handles both sync and async)
+                url = await url();
+                
+                // If the function returns job data directly (from scraper), use it
+                if (Array.isArray(url)) {
+                    jobs = source.parser(url);
+                    context.log(`✅ Fetched ${jobs.length} jobs from ${source.name}`);
+                    allJobs.push(...jobs.map(job => ({ ...job, source: job.source || source.name })));
+                    continue;
+                }
+            }
             
             // Build headers
             const defaultHeaders = { 'User-Agent': 'JobAlertBot/1.0' };
@@ -34,7 +48,7 @@ async function fetchJobsFromAllSources(context) {
             });
 
             // Parse jobs using source-specific parser
-            const jobs = source.parser(response.data);
+            jobs = source.parser(response.data);
             
             // Add source to each job
             const jobsWithSource = jobs.map(job => ({
