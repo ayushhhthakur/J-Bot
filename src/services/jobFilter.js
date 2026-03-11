@@ -135,9 +135,10 @@ function filterJob(job) {
         return { match: false, reason: 'Non-technical or support role (excluded)' };
     }
     
-    // Stage 4: Must be a pure technical role (CRITICAL)
+    // Stage 4: Must be a pure technical role OR title directly contains a target keyword
     const isPureTechnical = containsKeyword(combinedText, PURE_TECHNICAL_KEYWORDS);
-    if (!isPureTechnical) {
+    const titleHasTargetKeyword = containsKeyword(title, INCLUDE_KEYWORDS);
+    if (!isPureTechnical && !titleHasTargetKeyword) {
         return { match: false, reason: 'Not a pure technical role' };
     }
     

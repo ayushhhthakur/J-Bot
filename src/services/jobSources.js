@@ -301,18 +301,12 @@ const JOB_SOURCES = [
     {
         name: 'Google Careers India',
         url: async () => await scraper.scrapeGoogleCareers(),
-        parser: (data) => {
-            // Data is already parsed by scraper
-            return Array.isArray(data) ? data : [];
-        }
+        parser: (data) => Array.isArray(data) ? data : []
     },
     {
         name: 'Microsoft Careers India',
         url: async () => await scraper.scrapeMicrosoftCareers(),
-        parser: (data) => {
-            // Data is already parsed by scraper
-            return Array.isArray(data) ? data : [];
-        }
+        parser: (data) => Array.isArray(data) ? data : []
     },
     {
         name: 'Paytm Careers',
@@ -340,211 +334,58 @@ const JOB_SOURCES = [
     },
     {
         name: 'Wipro Careers',
-        url: 'https://careers.wipro.com/careers-home/jobs?location=India&page=1',
-        parser: (data) => {
-            try {
-                const jobs = data?.jobs || data?.searchResult || [];
-                return jobs.map(job => ({
-                    title: job.title || job.jobTitle,
-                    company_name: 'Wipro',
-                    location: job.location || 'India',
-                    description: job.description || job.jobDescription || '',
-                    url: job.jobUrl || job.url || `https://careers.wipro.com/job/${job.jobId}`,
-                    slug: job.jobId || job.id || `wipro_${Date.now()}`,
-                    job_type: job.jobType || 'Full-time',
-                    salary: null,
-                    date: job.postedDate || job.createdDate || null,
-                    source: 'Wipro Careers'
-                }));
-            } catch (error) {
-                return [];
-            }
-        }
+        url: async () => await scraper.scrapeWipro(),
+        parser: (data) => Array.isArray(data) ? data : []
     },
     {
         name: 'Accenture India',
         url: async () => await scraper.scrapeAccentureJobs(),
-        parser: (data) => {
-            // Data is already parsed by scraper
-            return Array.isArray(data) ? data : [];
-        }
+        parser: (data) => Array.isArray(data) ? data : []
     },
     {
         name: 'TCS Careers',
-        url: 'https://ibegin.tcs.com/iBegin/jobs/search',
-        parser: (data) => {
-            try {
-                const jobs = data?.jobs || [];
-                return jobs.map(job => ({
-                    title: job.title || job.jobTitle,
-                    company_name: 'Tata Consultancy Services',
-                    location: job.location || 'India',
-                    description: job.description || job.jobDescription || '',
-                    url: job.jobUrl || `https://ibegin.tcs.com/iBegin/jobs/${job.id}`,
-                    slug: job.id || `tcs_${Date.now()}`,
-                    job_type: job.jobType || 'Full-time',
-                    salary: null,
-                    date: job.postedDate || null,
-                    source: 'TCS Careers'
-                }));
-            } catch (error) {
-                return [];
-            }
-        }
+        url: async () => await scraper.scrapeTCS(),
+        parser: (data) => Array.isArray(data) ? data : []
     },
     {
         name: 'Infosys Careers',
-        url: 'https://career.infosys.com/jobservice/getCareersPage',
-        parser: (data) => {
-            try {
-                const jobs = data?.jobPostings || data?.jobs || [];
-                return jobs.map(job => ({
-                    title: job.title || job.jobTitle,
-                    company_name: 'Infosys',
-                    location: job.location || job.jobLocation || 'India',
-                    description: job.description || job.jobDescription || '',
-                    url: job.jobUrl || `https://career.infosys.com/job/${job.id}`,
-                    slug: job.id || `infosys_${Date.now()}`,
-                    job_type: job.jobType || 'Full-time',
-                    salary: null,
-                    date: job.postedDate || null,
-                    source: 'Infosys Careers'
-                }));
-            } catch (error) {
-                return [];
-            }
-        }
+        url: async () => await scraper.scrapeInfosys(),
+        parser: (data) => Array.isArray(data) ? data : []
     },
     {
         name: 'HCL Technologies',
-        url: 'https://www.hcltech.com/careers/job-search?location=India',
-        parser: (data) => {
-            try {
-                const jobs = data?.jobs || data?.results || [];
-                return jobs.map(job => ({
-                    title: job.title || job.jobTitle,
-                    company_name: 'HCL Technologies',
-                    location: job.location || 'India',
-                    description: job.description || job.jobDescription || '',
-                    url: job.jobUrl || job.url || `https://www.hcltech.com/careers/job/${job.id}`,
-                    slug: job.id || `hcl_${Date.now()}`,
-                    job_type: job.jobType || 'Full-time',
-                    salary: null,
-                    date: job.postedDate || null,
-                    source: 'HCL Technologies'
-                }));
-            } catch (error) {
-                return [];
-            }
-        }
+        url: async () => await scraper.scrapeHCL(),
+        parser: (data) => Array.isArray(data) ? data : []
     },
     {
         name: 'Tech Mahindra',
-        url: 'https://careers.techmahindra.com/api/jobs?location=India',
-        parser: (data) => {
-            try {
-                const jobs = data?.jobs || [];
-                return jobs.map(job => ({
-                    title: job.title || job.jobTitle,
-                    company_name: 'Tech Mahindra',
-                    location: job.location || 'India',
-                    description: job.description || job.jobDescription || '',
-                    url: job.jobUrl || `https://careers.techmahindra.com/job/${job.id}`,
-                    slug: job.id || `techmahindra_${Date.now()}`,
-                    job_type: job.jobType || 'Full-time',
-                    salary: null,
-                    date: job.postedDate || null,
-                    source: 'Tech Mahindra'
-                }));
-            } catch (error) {
-                return [];
-            }
-        }
+        url: async () => await scraper.scrapeTechMahindra(),
+        parser: (data) => Array.isArray(data) ? data : []
     },
     {
         name: 'Cognizant India',
-        url: 'https://careers.cognizant.com/api/jobs?location=India&country=IN',
-        parser: (data) => {
-            try {
-                const jobs = data?.jobs || data?.data || [];
-                return jobs.map(job => ({
-                    title: job.title || job.jobTitle,
-                    company_name: 'Cognizant',
-                    location: job.location || job.city || 'India',
-                    description: job.description || job.jobDescription || '',
-                    url: job.applyUrl || `https://careers.cognizant.com/job/${job.id}`,
-                    slug: job.id || `cognizant_${Date.now()}`,
-                    job_type: job.jobType || 'Full-time',
-                    salary: null,
-                    date: job.postedDate || null,
-                    source: 'Cognizant India'
-                }));
-            } catch (error) {
-                return [];
-            }
-        }
+        url: async () => await scraper.scrapeCognizant(),
+        parser: (data) => Array.isArray(data) ? data : []
     },
     {
         name: 'Capgemini India',
-        url: 'https://www.capgemini.com/jobs-api/jobs?location=India',
-        parser: (data) => {
-            try {
-                const jobs = data?.jobs || data?.results || [];
-                return jobs.map(job => ({
-                    title: job.title || job.jobTitle,
-                    company_name: 'Capgemini',
-                    location: job.location || 'India',
-                    description: job.description || job.jobDescription || '',
-                    url: job.applyUrl || `https://www.capgemini.com/careers/job/${job.id}`,
-                    slug: job.id || `capgemini_${Date.now()}`,
-                    job_type: job.jobType || 'Full-time',
-                    salary: null,
-                    date: job.postedDate || null,
-                    source: 'Capgemini India'
-                }));
-            } catch (error) {
-                return [];
-            }
-        }
+        url: async () => await scraper.scrapeCapgemini(),
+        parser: (data) => Array.isArray(data) ? data : []
     },
     {
         name: 'IBM India',
-        url: 'https://www.ibm.com/employment/api/search?location=India&country=IN',
-        parser: (data) => {
-            try {
-                const jobs = data?.jobs || data?.results || [];
-                return jobs.map(job => ({
-                    title: job.title || job.jobTitle,
-                    company_name: 'IBM',
-                    location: job.location || job.city || 'India',
-                    description: job.description || job.jobDescription || '',
-                    url: job.url || `https://www.ibm.com/careers/job/${job.id}`,
-                    slug: job.id || `ibm_${Date.now()}`,
-                    job_type: job.jobType || 'Full-time',
-                    salary: null,
-                    date: job.postedDate || null,
-                    source: 'IBM India'
-                }));
-            } catch (error) {
-                return [];
-            }
-        }
+        url: async () => await scraper.scrapeIBM(),
+        parser: (data) => Array.isArray(data) ? data : []
     },
     {
         name: 'Oracle India',
         url: async () => await scraper.scrapeOracleJobs(),
-        parser: (data) => {
-            // Data is already parsed by scraper
-            return Array.isArray(data) ? data : [];
-        }
+        parser: (data) => Array.isArray(data) ? data : []
     },
     {
         name: 'Amazon India',
         url: async () => await scraper.scrapeAmazonJobs(),
-        parser: (data) => {
-            // Data is already parsed by scraper
-            return Array.isArray(data) ? data : [];
-        }
+        parser: (data) => Array.isArray(data) ? data : []
     },
     {
         name: 'Adobe India',
@@ -663,27 +504,9 @@ const JOB_SOURCES = [
         }
     },
     {
-        name: 'Internshala',
-        url: 'https://internshala.com/api/internships?locations=India&experience=0-1',
-        parser: (data) => {
-            try {
-                const jobs = data?.internships || data?.jobs || [];
-                return jobs.map(job => ({
-                    title: job.title || job.profile,
-                    company_name: job.company_name || job.company || 'India Company',
-                    location: job.location || job.location_names?.[0] || 'India',
-                    description: job.job_description || job.description || '',
-                    url: job.url || `https://internshala.com/internship/detail/${job.id}`,
-                    slug: job.id || `internshala_${Date.now()}`,
-                    job_type: job.job_type || 'Internship/Entry-level',
-                    salary: job.stipend?.salary || null,
-                    date: job.posted_on || job.start_date || null,
-                    source: 'Internshala'
-                }));
-            } catch (error) {
-                return [];
-            }
-        }
+        name: 'Internshala Jobs',
+        url: async () => await scraper.scrapeInternshalaJobs(),
+        parser: (data) => Array.isArray(data) ? data : []
     },
     {
         name: 'LetsIntern',
@@ -710,26 +533,8 @@ const JOB_SOURCES = [
     },
     {
         name: 'Unstop (Dare2Compete)',
-        url: 'https://unstop.com/api/public/opportunity?type=job&opportunity-type=Fresher%20Job&location=India&page=1&per_page=50',
-        parser: (data) => {
-            try {
-                const jobs = data?.data?.opportunities || data?.opportunities || [];
-                return jobs.map(job => ({
-                    title: job.title,
-                    company_name: job.organisation?.name || job.company || 'India Company',
-                    location: job.location || 'India',
-                    description: job.description || job.short_description || '',
-                    url: job.public_url || `https://unstop.com/o/${job.id}`,
-                    slug: job.id || `unstop_${Date.now()}`,
-                    job_type: job.type || 'Fresher Job',
-                    salary: job.stipend || null,
-                    date: job.start_timestamp || job.created_at || null,
-                    source: 'Unstop'
-                }));
-            } catch (error) {
-                return [];
-            }
-        }
+        url: async () => await scraper.scrapeUnstop(),
+        parser: (data) => Array.isArray(data) ? data : []
     },
     {
         name: 'GeeksforGeeks Jobs',
@@ -984,7 +789,71 @@ const JOB_SOURCES = [
                 return [];
             }
         }
-    }
+    },
+    {
+        name: 'Mphasis Careers',
+        url: async () => await scraper.scrapeMphasis(),
+        parser: (data) => Array.isArray(data) ? data : []
+    },
+    {
+        name: 'Hexaware Careers',
+        url: async () => await scraper.scrapeHexaware(),
+        parser: (data) => Array.isArray(data) ? data : []
+    },
+    {
+        name: 'LTIMindtree Careers',
+        url: async () => await scraper.scrapeLTIMindtree(),
+        parser: (data) => Array.isArray(data) ? data : []
+    },
+    {
+        name: 'Deloitte India',
+        url: async () => await scraper.scrapeDeloitte(),
+        parser: (data) => Array.isArray(data) ? data : []
+    },
+    {
+        name: 'EY India',
+        url: async () => await scraper.scrapeEY(),
+        parser: (data) => Array.isArray(data) ? data : []
+    },
+    {
+        name: 'DXC Technology',
+        url: async () => await scraper.scrapeDXC(),
+        parser: (data) => Array.isArray(data) ? data : []
+    },
+    {
+        name: 'Naukri Campus',
+        url: async () => await scraper.scrapeNaukriCampus(),
+        parser: (data) => Array.isArray(data) ? data : []
+    },
+
+    // ── SmartRecruiters sources (verified public API) ──────────────────────
+    {
+        name: 'Coforge Careers',
+        url: async () => await scraper.scrapeCoforge(),
+        parser: (data) => Array.isArray(data) ? data : []
+    },
+    {
+        name: 'Genpact Careers',
+        url: async () => await scraper.scrapeGenpact(),
+        parser: (data) => Array.isArray(data) ? data : []
+    },
+    {
+        name: 'Persistent Systems',
+        url: async () => await scraper.scrapePersistent(),
+        parser: (data) => Array.isArray(data) ? data : []
+    },
+    {
+        name: 'Accenture India',
+        url: async () => await scraper.scrapeAccenture(),
+        parser: (data) => Array.isArray(data) ? data : []
+    },
+
+    // ── Fresher portals ────────────────────────────────────────────────────
+    {
+        name: 'The Muse Entry Level',
+        url: async () => await scraper.scrapeTheMuse(),
+        parser: (data) => Array.isArray(data) ? data : []
+    },
 ];
 
 module.exports = { JOB_SOURCES };

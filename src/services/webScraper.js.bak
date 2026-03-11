@@ -1,0 +1,866 @@
+/**
+ * Web scraper service for company career pages
+ * Scrapes Indian IT consultancies, MNCs, and fresher platforms
+ * Uses only axios — no cheerio dependency
+ */
+
+const axios = require('axios');
+
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+const COMMON_HEADERS = {
+    'User-Agent': UA,
+    'Accept': 'application/json, text/html, */*',
+    'Accept-Language': 'en-US,en;q=0.9',
+};
+
+// ============================================================================
+// GENERIC WORKDAY SCRAPER (used by DXC, Mphasis, Capgemini, etc.)
+// ============================================================================
+
+// Method: Workday POST API
+async function scrapeWorkday(tenantName, jobBoardId, companyDisplayName, keywords = 'cloud azure devops') {
+    try {
+        const url = `https://${tenantName}.wd1.myworkdayjobs.com/wday/cxs/${tenantName}/${jobBoardId}/jobs`;
+        const body = { limit: 20, offset: 0, searchText: keywords, locations: [] };
+        const response = await axios.post(url, body, {
+            timeout: 15000,
+            headers: { 'Content-Type': 'application/json', 'User-Agent': UA }
+        });
+        const jobs = response.data?.jobPostings || [];
+        return jobs.map(job => ({
+            title: job.title || job.bulletFields?.[0],
+            company_name: companyDisplayName,
+            location: job.locationsText || 'India',
+            description: job.descriptionTeaser || '',
+            url: `https://${tenantName}.wd1.myworkdayjobs.com/en-US/${jobBoardId}${job.externalPath}`,
+            slug: job.bulletFields?.[1] || `${tenantName}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            date: job.postedOn || null,
+            source: `${companyDisplayName} Careers`
+        }));
+    } catch (e) {
+        console.warn(`${companyDisplayName} Workday scraper failed:`, e.message);
+        return [];
+    }
+}
+
+// ============================================================================
+// INDIAN IT CONSULTANCIES
+// ============================================================================
+
+// Method: JSON API (POST)
+async function scrapeTCS() {
+    try {
+        const response = await axios.post('https://ibegin.tcs.com/iBegin/jobs/search',
+            { keywords: 'cloud azure devops security', location: '', pageNo: 1, pageSize: 50 },
+            { timeout: 15000, headers: { 'Content-Type': 'application/json', 'User-Agent': UA } }
+        );
+        const jobs = response.data?.jobs || response.data?.data || [];
+        return jobs.map(job => ({
+            title: job.title || job.jobTitle,
+            company_name: 'TCS',
+            location: job.location || 'India',
+            description: job.description || '',
+            url: job.url || `https://ibegin.tcs.com/iBegin/jobs/${job.id}`,
+            slug: String(job.id || `tcs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+            date: job.postedDate || null,
+            source: 'TCS Careers'
+        }));
+    } catch (e) {
+        console.warn('TCS scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: JSON API (GET)
+async function scrapeInfosys() {
+    try {
+        const response = await axios.get('https://career.infosys.com/joblist', {
+            params: { location: 'India', limit: 50 },
+            timeout: 15000,
+            headers: COMMON_HEADERS
+        });
+        if (typeof response.data === 'object' && response.data !== null) {
+            const jobs = response.data?.jobPostings || response.data?.jobs || response.data?.data || [];
+            return jobs.map(job => ({
+                title: job.title || job.jobTitle,
+                company_name: 'Infosys',
+                location: job.location || job.jobLocation || 'India',
+                description: job.description || job.jobDescription || '',
+                url: job.jobUrl || job.url || `https://career.infosys.com/jobdesc?jobReferenceCode=${job.jobReferenceCode || job.id}`,
+                slug: String(job.id || job.jobReferenceCode || `infosys_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+                date: job.postedDate || null,
+                source: 'Infosys Careers'
+            }));
+        }
+        // Fallback: HTML scrape for job links
+        const html = typeof response.data === 'string' ? response.data : '';
+        return extractJobsFromHTML(html, 'Infosys', 'https://career.infosys.com', 'Infosys Careers');
+    } catch (e) {
+        console.warn('Infosys scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: JSON API (GET)
+async function scrapeWipro() {
+    try {
+        const response = await axios.get('https://careers.wipro.com/careers-home/jobs', {
+            params: { keywords: 'cloud azure devops', location: 'India', pagesize: 50 },
+            timeout: 15000,
+            headers: COMMON_HEADERS
+        });
+        if (typeof response.data === 'object' && response.data !== null) {
+            const jobs = response.data?.jobs || response.data?.searchResult || response.data?.data || [];
+            return jobs.map(job => ({
+                title: job.title || job.jobTitle,
+                company_name: 'Wipro',
+                location: job.location || 'India',
+                description: job.description || job.jobDescription || '',
+                url: job.jobUrl || job.url || `https://careers.wipro.com/job/${job.jobId || job.id}`,
+                slug: String(job.jobId || job.id || `wipro_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+                date: job.postedDate || job.createdDate || null,
+                source: 'Wipro Careers'
+            }));
+        }
+        const html = typeof response.data === 'string' ? response.data : '';
+        return extractJobsFromHTML(html, 'Wipro', 'https://careers.wipro.com', 'Wipro Careers');
+    } catch (e) {
+        console.warn('Wipro scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: JSON API (GET) with XHR endpoint fallback
+async function scrapeCognizant() {
+    try {
+        // Try JSON format first
+        const response = await axios.get('https://careers.cognizant.com/global/en/search-results', {
+            params: { keywords: 'cloud azure', location: 'India', format: 'json' },
+            timeout: 15000,
+            headers: COMMON_HEADERS
+        });
+        if (typeof response.data === 'object' && response.data !== null) {
+            const jobs = response.data?.jobs || response.data?.data || response.data?.searchResults || [];
+            return jobs.map(job => ({
+                title: job.title || job.jobTitle,
+                company_name: 'Cognizant',
+                location: job.location || job.city || 'India',
+                description: job.description || job.jobDescription || '',
+                url: job.applyUrl || job.url || `https://careers.cognizant.com/global/en/job/${job.jobId || job.id}`,
+                slug: String(job.jobId || job.id || `cognizant_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+                date: job.postedDate || null,
+                source: 'Cognizant Careers'
+            }));
+        }
+        const html = typeof response.data === 'string' ? response.data : '';
+        return extractJobsFromHTML(html, 'Cognizant', 'https://careers.cognizant.com', 'Cognizant Careers');
+    } catch (e) {
+        console.warn('Cognizant scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: JSON API (GET) with background API fallback
+async function scrapeHCL() {
+    try {
+        // Try background API first
+        let response;
+        try {
+            response = await axios.get('https://www.hcltech.com/careers/api/jobs', {
+                params: { skill: 'cloud', location: 'India' },
+                timeout: 15000,
+                headers: COMMON_HEADERS
+            });
+        } catch {
+            // Fallback to main career page
+            response = await axios.get('https://www.hcltech.com/careers/job-search', {
+                params: { skill: 'cloud', location: 'India' },
+                timeout: 15000,
+                headers: COMMON_HEADERS
+            });
+        }
+        if (typeof response.data === 'object' && response.data !== null) {
+            const jobs = response.data?.jobs || response.data?.results || response.data?.data || [];
+            return jobs.map(job => ({
+                title: job.title || job.jobTitle,
+                company_name: 'HCL Technologies',
+                location: job.location || 'India',
+                description: job.description || job.jobDescription || '',
+                url: job.jobUrl || job.url || `https://www.hcltech.com/careers/job/${job.id}`,
+                slug: String(job.id || `hcl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+                date: job.postedDate || null,
+                source: 'HCL Careers'
+            }));
+        }
+        const html = typeof response.data === 'string' ? response.data : '';
+        return extractJobsFromHTML(html, 'HCL Technologies', 'https://www.hcltech.com', 'HCL Careers');
+    } catch (e) {
+        console.warn('HCL scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: JSON API (GET) with format=json fallback
+async function scrapeTechMahindra() {
+    try {
+        const response = await axios.get('https://careers.techmahindra.com/search/', {
+            params: { q: 'cloud azure devops', locationsearch: 'India', format: 'json' },
+            timeout: 15000,
+            headers: COMMON_HEADERS
+        });
+        if (typeof response.data === 'object' && response.data !== null) {
+            const jobs = response.data?.jobs || response.data?.data || [];
+            return jobs.map(job => ({
+                title: job.title || job.jobTitle,
+                company_name: 'Tech Mahindra',
+                location: job.location || 'India',
+                description: job.description || job.jobDescription || '',
+                url: job.jobUrl || job.url || `https://careers.techmahindra.com/job/${job.id}`,
+                slug: String(job.id || `techmahindra_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+                date: job.postedDate || null,
+                source: 'Tech Mahindra Careers'
+            }));
+        }
+        const html = typeof response.data === 'string' ? response.data : '';
+        return extractJobsFromHTML(html, 'Tech Mahindra', 'https://careers.techmahindra.com', 'Tech Mahindra Careers');
+    } catch (e) {
+        console.warn('Tech Mahindra scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: Workday POST API
+async function scrapeCapgemini() {
+    try {
+        // Try Workday endpoint first (Capgemini uses Workday)
+        const workdayJobs = await scrapeWorkday('capgemini', 'Capgemini_Careers', 'Capgemini', 'cloud azure devops');
+        if (workdayJobs.length > 0) return workdayJobs;
+
+        // Fallback: try their own API
+        const response = await axios.get('https://www.capgemini.com/in-en/careers/job-search/', {
+            params: { query: 'cloud azure', country: 'IN' },
+            timeout: 15000,
+            headers: COMMON_HEADERS
+        });
+        if (typeof response.data === 'object' && response.data !== null) {
+            const jobs = response.data?.jobs || response.data?.results || [];
+            return jobs.map(job => ({
+                title: job.title || job.jobTitle,
+                company_name: 'Capgemini',
+                location: job.location || 'India',
+                description: job.description || '',
+                url: job.applyUrl || job.url || `https://www.capgemini.com/careers/job/${job.id}`,
+                slug: String(job.id || `capgemini_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+                date: job.postedDate || null,
+                source: 'Capgemini Careers'
+            }));
+        }
+        return [];
+    } catch (e) {
+        console.warn('Capgemini scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: Workday POST API / JSON API fallback
+async function scrapeMphasis() {
+    try {
+        // Try Workday endpoint first
+        const workdayJobs = await scrapeWorkday('mphasis', 'Mphasis_Careers', 'Mphasis', 'cloud azure devops');
+        if (workdayJobs.length > 0) return workdayJobs;
+
+        // Fallback: try their API
+        const response = await axios.get('https://careers.mphasis.com/api/jobs', {
+            params: { location: 'India', keywords: 'cloud' },
+            timeout: 15000,
+            headers: COMMON_HEADERS
+        });
+        if (typeof response.data === 'object' && response.data !== null) {
+            const jobs = response.data?.jobs || response.data?.data || [];
+            return jobs.map(job => ({
+                title: job.title || job.jobTitle,
+                company_name: 'Mphasis',
+                location: job.location || 'India',
+                description: job.description || '',
+                url: job.url || `https://careers.mphasis.com/job/${job.id}`,
+                slug: String(job.id || `mphasis_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+                date: job.postedDate || null,
+                source: 'Mphasis Careers'
+            }));
+        }
+        return [];
+    } catch (e) {
+        console.warn('Mphasis scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: HTML scrape / JSON API
+async function scrapeHexaware() {
+    try {
+        const response = await axios.get('https://hexaware.com/careers/job-search/', {
+            params: { keyword: 'cloud azure', location: 'India' },
+            timeout: 15000,
+            headers: COMMON_HEADERS
+        });
+        if (typeof response.data === 'object' && response.data !== null) {
+            const jobs = response.data?.jobs || response.data?.data || [];
+            return jobs.map(job => ({
+                title: job.title || job.jobTitle,
+                company_name: 'Hexaware',
+                location: job.location || 'India',
+                description: job.description || '',
+                url: job.url || `https://hexaware.com/careers/job/${job.id}`,
+                slug: String(job.id || `hexaware_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+                date: job.postedDate || null,
+                source: 'Hexaware Careers'
+            }));
+        }
+        const html = typeof response.data === 'string' ? response.data : '';
+        return extractJobsFromHTML(html, 'Hexaware', 'https://hexaware.com', 'Hexaware Careers');
+    } catch (e) {
+        console.warn('Hexaware scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: HTML scrape / JSON API
+async function scrapeLTIMindtree() {
+    try {
+        const response = await axios.get('https://www.ltimindtree.com/careers/job-search/', {
+            params: { keywords: 'cloud azure devops', location: 'India' },
+            timeout: 15000,
+            headers: COMMON_HEADERS
+        });
+        if (typeof response.data === 'object' && response.data !== null) {
+            const jobs = response.data?.jobs || response.data?.data || [];
+            return jobs.map(job => ({
+                title: job.title || job.jobTitle,
+                company_name: 'LTIMindtree',
+                location: job.location || 'India',
+                description: job.description || '',
+                url: job.url || `https://www.ltimindtree.com/careers/job/${job.id}`,
+                slug: String(job.id || `ltimindtree_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+                date: job.postedDate || null,
+                source: 'LTIMindtree Careers'
+            }));
+        }
+        const html = typeof response.data === 'string' ? response.data : '';
+        return extractJobsFromHTML(html, 'LTIMindtree', 'https://www.ltimindtree.com', 'LTIMindtree Careers');
+    } catch (e) {
+        console.warn('LTIMindtree scraper failed:', e.message);
+        return [];
+    }
+}
+
+// ============================================================================
+// GLOBAL MNCs WITH INDIA OFFICES
+// ============================================================================
+
+// Method: JSON API (POST)
+async function scrapeAccentureJobs() {
+    try {
+        const response = await axios.post('https://www.accenture.com/api/sitecore/CareerSearchAjax/GetJobs', {
+            Keywords: 'cloud azure devops security',
+            Location: 'India',
+            PageNumber: 1,
+            PageSize: 50,
+            Language: 'en'
+        }, {
+            timeout: 15000,
+            headers: { 'Content-Type': 'application/json', 'User-Agent': UA }
+        });
+        const jobs = response.data?.Results || response.data?.jobs || response.data?.data || [];
+        return jobs.map(job => ({
+            title: job.Title || job.title || job.jobTitle,
+            company_name: 'Accenture',
+            location: job.Location || job.location || 'India',
+            description: job.Description || job.description || '',
+            url: job.ApplyUrl || job.DetailUrl || `https://www.accenture.com/in-en/careers/jobdetails?id=${job.Id || job.id}`,
+            slug: String(job.Id || job.id || `accenture_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+            date: job.PostedDate || job.postedDate || null,
+            source: 'Accenture India'
+        }));
+    } catch (e) {
+        console.warn('Accenture scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: JSON API (GET)
+async function scrapeIBM() {
+    try {
+        let response;
+        try {
+            response = await axios.get('https://www.ibm.com/careers/search', {
+                params: { 'field_keyword_08[]': ['Cloud Computing', 'Cybersecurity'], country: 'India' },
+                timeout: 15000,
+                headers: COMMON_HEADERS
+            });
+        } catch {
+            response = await axios.get('https://careers.ibm.com/api/jobs', {
+                params: { location: 'India', keywords: 'cloud azure' },
+                timeout: 15000,
+                headers: COMMON_HEADERS
+            });
+        }
+        if (typeof response.data === 'object' && response.data !== null) {
+            const jobs = response.data?.jobs || response.data?.results || response.data?.data || [];
+            return jobs.map(job => ({
+                title: job.title || job.jobTitle,
+                company_name: 'IBM',
+                location: job.location || job.city || 'India',
+                description: job.description || job.jobDescription || '',
+                url: job.url || `https://www.ibm.com/careers/job/${job.id}`,
+                slug: String(job.id || `ibm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+                date: job.postedDate || null,
+                source: 'IBM India'
+            }));
+        }
+        return [];
+    } catch (e) {
+        console.warn('IBM scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: JSON API (GET)
+async function scrapeDeloitte() {
+    try {
+        let response;
+        try {
+            response = await axios.get('https://careers2.deloitte.com/api/jobs', {
+                params: { keyword: 'cloud azure', location: 'India', country: 'IN' },
+                timeout: 15000,
+                headers: COMMON_HEADERS
+            });
+        } catch {
+            response = await axios.get('https://apply.deloitte.com/careers/SearchJobs/cloud', {
+                params: { '3_66_3': '1583' },
+                timeout: 15000,
+                headers: COMMON_HEADERS
+            });
+        }
+        if (typeof response.data === 'object' && response.data !== null) {
+            const jobs = response.data?.jobs || response.data?.data || response.data?.results || [];
+            return jobs.map(job => ({
+                title: job.title || job.jobTitle,
+                company_name: 'Deloitte',
+                location: job.location || 'India',
+                description: job.description || '',
+                url: job.url || job.applyUrl || `https://apply.deloitte.com/careers/job/${job.id}`,
+                slug: String(job.id || `deloitte_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+                date: job.postedDate || null,
+                source: 'Deloitte India'
+            }));
+        }
+        const html = typeof response.data === 'string' ? response.data : '';
+        return extractJobsFromHTML(html, 'Deloitte', 'https://apply.deloitte.com', 'Deloitte India');
+    } catch (e) {
+        console.warn('Deloitte scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: JSON API (GET) with format=json
+async function scrapeEY() {
+    try {
+        const response = await axios.get('https://careers.ey.com/ey/search/', {
+            params: { q: 'cloud azure', locationsearch: 'India', format: 'json' },
+            timeout: 15000,
+            headers: COMMON_HEADERS
+        });
+        if (typeof response.data === 'object' && response.data !== null) {
+            const jobs = response.data?.jobs || response.data?.data || response.data?.results || [];
+            return jobs.map(job => ({
+                title: job.title || job.jobTitle,
+                company_name: 'EY',
+                location: job.location || 'India',
+                description: job.description || '',
+                url: job.url || job.applyUrl || `https://careers.ey.com/job/${job.id}`,
+                slug: String(job.id || `ey_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+                date: job.postedDate || null,
+                source: 'EY India'
+            }));
+        }
+        const html = typeof response.data === 'string' ? response.data : '';
+        return extractJobsFromHTML(html, 'EY', 'https://careers.ey.com', 'EY India');
+    } catch (e) {
+        console.warn('EY scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: Workday POST API
+async function scrapeDXC() {
+    try {
+        return await scrapeWorkday('dxc', 'DXC_Careers', 'DXC Technology', 'cloud azure devops');
+    } catch (e) {
+        console.warn('DXC scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: JSON API (POST)
+async function scrapeGoogleCareers() {
+    try {
+        const response = await axios.post('https://careers.google.com/api/v3/search/', {
+            location: 'India',
+            company: 'Google',
+            employment_type: ['FULL_TIME', 'PART_TIME'],
+            page_size: 50
+        }, {
+            timeout: 15000,
+            headers: { 'Content-Type': 'application/json', 'User-Agent': UA }
+        });
+        const jobs = response.data?.jobs || [];
+        return jobs.map(job => ({
+            title: job.title,
+            company_name: 'Google',
+            location: job.locations?.[0]?.display || 'India',
+            description: job.summary || job.responsibilities || '',
+            url: `https://careers.google.com/jobs/results/${job.id}`,
+            slug: job.id,
+            job_type: job.employment_type || 'Full-time',
+            date: job.posted_date || job.created || null,
+            source: 'Google Careers India'
+        }));
+    } catch (e) {
+        console.warn('Google scraping failed:', e.message);
+        return [];
+    }
+}
+
+// Method: JSON API (GET)
+async function scrapeMicrosoftCareers() {
+    try {
+        const response = await axios.get('https://gcsservices.careers.microsoft.com/search/api/v1/search', {
+            params: { l: 'en_us', pg: 1, pgSz: 50, o: 'Recent', flt: 'true' },
+            timeout: 15000,
+            headers: { 'User-Agent': UA }
+        });
+        const jobs = response.data?.operationResult?.result?.jobs || [];
+        const indiaJobs = jobs.filter(job =>
+            job.country?.toLowerCase() === 'india' ||
+            job.location?.toLowerCase().includes('india')
+        );
+        return indiaJobs.map(job => ({
+            title: job.title,
+            company_name: 'Microsoft',
+            location: job.location || job.city || 'India',
+            description: job.description || job.descriptionTeaser || '',
+            url: `https://careers.microsoft.com/us/en/job/${job.jobId}`,
+            slug: job.jobId,
+            job_type: job.workSiteFlexibility || 'Full-time',
+            date: job.postingDate || null,
+            source: 'Microsoft Careers India'
+        }));
+    } catch (e) {
+        console.warn('Microsoft scraping failed:', e.message);
+        return [];
+    }
+}
+
+// Method: JSON API (GET)
+async function scrapeAmazonJobs() {
+    try {
+        const response = await axios.get('https://www.amazon.jobs/en/search.json', {
+            params: { offset: 0, result_limit: 50, country: 'IND', sort: 'relevant' },
+            timeout: 15000,
+            headers: { 'User-Agent': UA }
+        });
+        const jobs = response.data?.jobs || [];
+        return jobs.map(job => ({
+            title: job.title,
+            company_name: 'Amazon',
+            location: job.city || job.location || 'India',
+            description: job.description || job.basic_qualifications || '',
+            url: `https://www.amazon.jobs${job.job_path}`,
+            slug: job.id_icims || job.id,
+            job_type: job.job_schedule_type || 'Full-time',
+            date: job.posted_date || null,
+            source: 'Amazon India'
+        }));
+    } catch (e) {
+        console.warn('Amazon scraping failed:', e.message);
+        return [];
+    }
+}
+
+// Method: JSON API (GET)
+async function scrapeOracleJobs() {
+    try {
+        const response = await axios.get('https://eeho.fa.us2.oraclecloud.com/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitionsLOV', {
+            params: { onlyData: true, expand: 'all', finder: 'findReqs;siteNumber=CX,Location=IN', limit: 50 },
+            timeout: 15000,
+            headers: { 'User-Agent': UA }
+        });
+        const jobs = response.data?.items || [];
+        return jobs.map(job => ({
+            title: job.Title,
+            company_name: 'Oracle',
+            location: job.PrimaryLocation || 'India',
+            description: job.Description || '',
+            url: `https://careers.oracle.com/jobs/#en/sites/jobsearch/job/${job.Id}`,
+            slug: job.Id || job.RequisitionId,
+            job_type: job.JobType || 'Full-time',
+            date: job.PostedDate || null,
+            source: 'Oracle India'
+        }));
+    } catch (e) {
+        console.warn('Oracle scraping failed:', e.message);
+        return [];
+    }
+}
+
+// ============================================================================
+// FRESHER-SPECIFIC PLATFORMS
+// ============================================================================
+
+// Method: JSON API (GET) — real working public API
+async function scrapeUnstop() {
+    try {
+        const response = await axios.get('https://unstop.com/api/public/opportunity', {
+            params: { type: 'job', 'opportunity-type': 'Fresher Job', page: 1, per_page: 50 },
+            timeout: 15000,
+            headers: COMMON_HEADERS
+        });
+        const jobs = response.data?.data?.opportunities || response.data?.opportunities || [];
+        return jobs.map(job => ({
+            title: job.title,
+            company_name: job.organisation?.name || job.company || 'Company',
+            location: job.location || 'India',
+            description: job.description || job.short_description || '',
+            url: job.public_url || `https://unstop.com/o/${job.id}`,
+            slug: String(job.id || `unstop_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+            job_type: job.type || 'Fresher Job',
+            date: job.start_timestamp || job.created_at || null,
+            source: 'Unstop'
+        }));
+    } catch (e) {
+        console.warn('Unstop scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: HTML scrape (regex-based)
+async function scrapeInternshalaJobs() {
+    try {
+        const response = await axios.get('https://internshala.com/jobs/cloud-computing-jobs,cyber-security-jobs,devops-jobs/', {
+            timeout: 15000,
+            headers: {
+                'User-Agent': UA,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            }
+        });
+        const html = typeof response.data === 'string' ? response.data : '';
+        if (!html) return [];
+
+        const jobs = [];
+        // Extract job cards using regex
+        const titleRegex = /<a[^>]*class="[^"]*job-title[^"]*"[^>]*href="([^"]*)"[^>]*>\s*([^<]+)/gi;
+        const companyRegex = /<a[^>]*class="[^"]*company-name[^"]*"[^>]*>\s*([^<]+)/gi;
+        const locationRegex = /<span[^>]*class="[^"]*location[^"]*"[^>]*>\s*([^<]+)/gi;
+
+        let titleMatch;
+        const titles = [];
+        const urls = [];
+        while ((titleMatch = titleRegex.exec(html)) !== null) {
+            urls.push(titleMatch[1]);
+            titles.push(titleMatch[2].trim());
+        }
+
+        const companies = [];
+        let companyMatch;
+        while ((companyMatch = companyRegex.exec(html)) !== null) {
+            companies.push(companyMatch[1].trim());
+        }
+
+        const locations = [];
+        let locationMatch;
+        while ((locationMatch = locationRegex.exec(html)) !== null) {
+            locations.push(locationMatch[1].trim());
+        }
+
+        for (let i = 0; i < titles.length; i++) {
+            jobs.push({
+                title: titles[i],
+                company_name: companies[i] || 'Company',
+                location: locations[i] || 'India',
+                description: '',
+                url: urls[i]?.startsWith('http') ? urls[i] : `https://internshala.com${urls[i] || ''}`,
+                slug: `internshala_job_${i}_${Date.now()}`,
+                date: null,
+                source: 'Internshala Jobs'
+            });
+        }
+        return jobs;
+    } catch (e) {
+        console.warn('Internshala Jobs scraper failed:', e.message);
+        return [];
+    }
+}
+
+// Method: JSON API (GET)
+async function scrapeNaukriCampus() {
+    try {
+        const response = await axios.get('https://campus.naukri.com/api/v1/job/search', {
+            params: { keywords: 'cloud azure devops', experience: 0, location: 'India' },
+            timeout: 15000,
+            headers: COMMON_HEADERS
+        });
+        if (typeof response.data === 'object' && response.data !== null) {
+            const jobs = response.data?.jobs || response.data?.data || response.data?.results || [];
+            return jobs.map(job => ({
+                title: job.title || job.jobTitle,
+                company_name: job.companyName || job.company || 'Company',
+                location: job.location || 'India',
+                description: job.description || job.jobDescription || '',
+                url: job.url || job.applyUrl || `https://campus.naukri.com/job/${job.id}`,
+                slug: String(job.id || `naukricampus_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+                date: job.postedDate || job.createdAt || null,
+                source: 'Naukri Campus'
+            }));
+        }
+        return [];
+    } catch (e) {
+        console.warn('Naukri Campus scraper failed:', e.message);
+        return [];
+    }
+}
+
+// ============================================================================
+// HTML PARSING UTILITY (regex-based, no cheerio)
+// ============================================================================
+
+/**
+ * Extract jobs from raw HTML using regex patterns
+ * Fallback for career pages that return HTML instead of JSON
+ */
+function extractJobsFromHTML(html, companyName, baseUrl, sourceName) {
+    if (!html || typeof html !== 'string') return [];
+
+    const jobs = [];
+    // Common patterns: <a href="/job/...">Job Title</a>
+    const linkRegex = /<a[^>]*href="([^"]*(?:job|career|position|opening|vacancy)[^"]*)"[^>]*>([^<]{5,100})<\/a>/gi;
+    let match;
+    const seen = new Set();
+
+    while ((match = linkRegex.exec(html)) !== null) {
+        const href = match[1];
+        const title = match[2].trim().replace(/&amp;/g, '&').replace(/&#\d+;/g, '');
+
+        // Skip navigation links, pagination, etc.
+        if (title.length < 5 || /next|prev|page|login|sign|menu|nav|cookie/i.test(title)) continue;
+        if (seen.has(href)) continue;
+        seen.add(href);
+
+        const fullUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+        jobs.push({
+            title,
+            company_name: companyName,
+            location: 'India',
+            description: '',
+            url: fullUrl,
+            slug: `${companyName.toLowerCase().replace(/\s+/g, '_')}_${Buffer.from(href).toString('base64').slice(0, 12)}`,
+            date: null,
+            source: sourceName
+        });
+    }
+    return jobs;
+}
+
+// ============================================================================
+// TEST ALL SCRAPERS
+// ============================================================================
+
+async function testAllScrapers() {
+    const scrapers = [
+        { name: 'TCS', fn: scrapeTCS },
+        { name: 'Infosys', fn: scrapeInfosys },
+        { name: 'Wipro', fn: scrapeWipro },
+        { name: 'Cognizant', fn: scrapeCognizant },
+        { name: 'HCL Technologies', fn: scrapeHCL },
+        { name: 'Tech Mahindra', fn: scrapeTechMahindra },
+        { name: 'Capgemini', fn: scrapeCapgemini },
+        { name: 'Mphasis', fn: scrapeMphasis },
+        { name: 'Hexaware', fn: scrapeHexaware },
+        { name: 'LTIMindtree', fn: scrapeLTIMindtree },
+        { name: 'Accenture', fn: scrapeAccentureJobs },
+        { name: 'IBM', fn: scrapeIBM },
+        { name: 'Deloitte', fn: scrapeDeloitte },
+        { name: 'EY', fn: scrapeEY },
+        { name: 'DXC Technology', fn: scrapeDXC },
+        { name: 'Google', fn: scrapeGoogleCareers },
+        { name: 'Microsoft', fn: scrapeMicrosoftCareers },
+        { name: 'Amazon', fn: scrapeAmazonJobs },
+        { name: 'Oracle', fn: scrapeOracleJobs },
+        { name: 'Unstop', fn: scrapeUnstop },
+        { name: 'Internshala Jobs', fn: scrapeInternshalaJobs },
+        { name: 'Naukri Campus', fn: scrapeNaukriCampus },
+    ];
+
+    console.log('\n🔍 Testing all career page scrapers...\n');
+    let totalJobs = 0;
+    let successCount = 0;
+
+    for (const { name, fn } of scrapers) {
+        try {
+            const startTime = Date.now();
+            const jobs = await fn();
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            if (jobs.length > 0) {
+                console.log(`  ✅ ${name} → ${jobs.length} jobs (${elapsed}s)`);
+                successCount++;
+                totalJobs += jobs.length;
+            } else {
+                console.log(`  ⚠️  ${name} → 0 jobs (${elapsed}s)`);
+            }
+        } catch (err) {
+            console.log(`  ❌ ${name} → error: ${err.message}`);
+        }
+    }
+
+    console.log(`\n📊 Summary: ${successCount}/${scrapers.length} scrapers returned jobs, ${totalJobs} total jobs\n`);
+}
+
+if (require.main === module) {
+    testAllScrapers();
+}
+
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
+module.exports = {
+    // Indian IT Consultancies
+    scrapeTCS,
+    scrapeInfosys,
+    scrapeWipro,
+    scrapeCognizant,
+    scrapeHCL,
+    scrapeTechMahindra,
+    scrapeCapgemini,
+    scrapeMphasis,
+    scrapeHexaware,
+    scrapeLTIMindtree,
+    // Global MNCs
+    scrapeAccentureJobs,
+    scrapeIBM,
+    scrapeDeloitte,
+    scrapeEY,
+    scrapeDXC,
+    scrapeGoogleCareers,
+    scrapeMicrosoftCareers,
+    scrapeAmazonJobs,
+    scrapeOracleJobs,
+    // Fresher platforms
+    scrapeUnstop,
+    scrapeInternshalaJobs,
+    scrapeNaukriCampus,
+    // Utilities
+    scrapeWorkday,
+    extractJobsFromHTML,
+    testAllScrapers,
+};

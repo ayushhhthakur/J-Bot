@@ -39,13 +39,16 @@ const INCLUDE_KEYWORDS = [
 const ENTRY_LEVEL_KEYWORDS = [
     'Intern', 'Internship', 'Junior', 'Entry', 'Fresher', 'Graduate', 
     '0-1 year', '0 year', '1 year', '1-2 year', '1-2 years', '0-2 year', '0-2 years',
-    'Entry Level', 'Entry-Level'
+    'Entry Level', 'Entry-Level',
+    '0-3 years', '0 - 2', '0 - 3', 'fresh graduate', 'recent graduate',
+    'campus hire', 'GET', 'GEP', 'trainee', 'fresher'
 ];
 
 // Exclude senior positions (3+ years)
 const EXCLUDE_KEYWORDS = [
     '3+ years', '4+ years', '5+ years', '6+ years', 
-    'Senior', 'Lead', 'Manager', 'Architect', 'Principal'
+    'Senior', 'Lead', 'Manager', 'Principal',
+    'Senior Architect', 'Lead Architect', 'Principal Architect'
 ];
 
 // Non-technical role exclusions - MUST NOT contain these
@@ -91,6 +94,12 @@ const PURE_TECHNICAL_KEYWORDS = [
     // Indian fresher titles
     'Graduate Engineer Trainee', 'Associate Engineer', 'Trainee Engineer',
     'Technology Analyst', 'Cloud Associate', 'Infrastructure Associate',
+    // Additional fresher/entry titles
+    'Cloud Trainee', 'Cloud Support', 'IT Infrastructure', 'Infrastructure Trainee',
+    'Junior DevOps', 'Junior Cloud', 'Graduate Trainee', 'Engineer Trainee',
+    'Associate Consultant', 'Technology Associate', 'Technical Analyst',
+    'IT Operations', 'Operations Engineer', 'Network Associate',
+    'Cloud Operations', 'Cloud Computing', 'Azure Support',
 ];
 
 // Location filters - India only

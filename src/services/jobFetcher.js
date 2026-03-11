@@ -25,6 +25,12 @@ async function fetchJobsFromAllSources(context) {
             if (typeof url === 'function') {
                 // Execute function (handles both sync and async)
                 url = await url();
+
+                // Null guard — skip sources that return null (e.g. no API key)
+                if (!url) {
+                    context.log(`⏭️ Skipping ${source.name} (no API key configured)`);
+                    continue;
+                }
                 
                 // If the function returns job data directly (from scraper), use it
                 if (Array.isArray(url)) {
