@@ -5,6 +5,55 @@
 
 const axios = require('axios');
 const { JOB_SOURCES } = require('./jobSources');
+const cheerio = require('cheerio');
+
+/**
+ * Generic HTML scraper fallback — tries to extract job links/titles from arbitrary pages.
+ * Returns an array of job-like objects or [] on failure.
+ */
+function htmlScrapeGeneric(html, baseUrl = '', sourceName = 'Unknown') {
+    try {
+        const $ = cheerio.load(html);
+        const anchors = [];
+
+        $('a[href]').each((i, el) => {
+            const href = $(el).attr('href') || '';
+            const text = ($(el).text() || '').trim();
+            // heuristics: href contains job/careers/apply/opening/position/vacancy or anchor text is long enough
+            if (/\b(job|jobs|careers|apply|opening|position|vacancy)\b/i.test(href) || /\b(job|careers|apply|opening|position|vacancy)\b/i.test(text) || text.length > 20) {
+                anchors.push({ href, text });
+            }
+        });
+
+        // Resolve and dedupe
+        const seen = new Set();
+        const jobs = [];
+        for (const a of anchors) {
+            let resolved = a.href;
+            try { resolved = new URL(a.href, baseUrl).toString(); } catch (e) { /* leave as-is */ }
+            if (!resolved || seen.has(resolved)) continue;
+            seen.add(resolved);
+            const title = a.text || resolved.split('/').pop().replace(/[-_]/g, ' ') || 'Job posting';
+            jobs.push({
+                title: title.trim(),
+                company_name: sourceName,
+                location: 'India',
+                description: '',
+                url: resolved,
+                slug: (resolved.split('/').pop() || `scraped_${Date.now()}`),
+                job_type: 'Full-time',
+                salary: null,
+                date: null,
+                source: sourceName,
+                tags: []
+            });
+            if (jobs.length >= 50) break;
+        }
+        return jobs;
+    } catch (err) {
+        return [];
+    }
+}
 
 /**
  * Fetch jobs from all configured sources
@@ -55,15 +104,65 @@ async function fetchJobsFromAllSources(context) {
 
             // Parse jobs using source-specific parser
             jobs = source.parser(response.data);
+
+            // If parser returned nothing and the response is HTML, attempt a generic HTML scrape
+            if ((!Array.isArray(jobs) || jobs.length === 0) && typeof response.data === 'string') {
+                try {
+                    const baseUrl = response.request && response.request.res && response.request.res.responseUrl ?
+                        response.request.res.responseUrl : url;
+                    const scraped = htmlScrapeGeneric(response.data, baseUrl, source.name);
+                    if (Array.isArray(scraped) && scraped.length > 0) {
+                        jobs = scraped;
+                        context.log(`🧩 HTML-scraped ${scraped.length} jobs from ${source.name}`);
+                    }
+                } catch (err) {
+                    context.warn(`⚠️ HTML scrape failed for ${source.name}: ${err.message}`);
+                }
+            }
             
             // Add source to each job
             const jobsWithSource = jobs.map(job => ({
                 ...job,
                 source: job.source || source.name
             }));
-            
-            context.log(`✅ Fetched ${jobsWithSource.length} jobs from ${source.name}`);
-            allJobs.push(...jobsWithSource);
+
+            // Detect walk-in interviews and add tags for Delhi/Noida/Gurgaon
+            const CITY_KEYWORDS = ['delhi','new delhi','noida','gurgaon','gurugram','gurgoan'];
+
+            function detectWalkInTags(job) {
+                try {
+                    job.tags = Array.isArray(job.tags) ? job.tags.slice() : (job.tags ? [job.tags] : []);
+                    const hay = ((job.title||'') + ' ' + (job.description||'') + ' ' + (job.location||'') + ' ' + (job.url||'')).toLowerCase();
+                    
+                    // Check for walk-in mentions but exclude negations (no, not, don't, etc)
+                    const hasWalkin = /(^|[\s,])walk[- ]?in(s)?(\s|[,.!?]|$)/i.test(hay) || 
+                                     /walk[- ]?in interview/i.test(hay) ||
+                                     /(^|[\s,])walkins?(\s|[,.!?]|$)/i.test(hay);
+                    const hasNegation = /no\s+walk[- ]?in|not.*walk[- ]?in|don't.*walk[- ]?in|without.*walk[- ]?in/i.test(hay);
+                    
+                    if (!hasWalkin || hasNegation) return job;
+
+                    // Add generic walk-in tag
+                    if (!job.tags.includes('walk-in')) job.tags.push('walk-in');
+
+                    // Add city-specific tags
+                    for (const c of CITY_KEYWORDS) {
+                        if (hay.includes(c)) {
+                            const tag = `walk-in-${c.replace(/\s+/g,'-')}`;
+                            if (!job.tags.includes(tag)) job.tags.push(tag);
+                        }
+                    }
+
+                    return job;
+                } catch (e) {
+                    return job;
+                }
+            }
+
+            const jobsTagged = jobsWithSource.map(detectWalkInTags);
+
+            context.log(`✅ Fetched ${jobsTagged.length} jobs from ${source.name}`);
+            allJobs.push(...jobsTagged);
             
         } catch (error) {
             context.warn(`⚠️ Failed to fetch from ${source.name}: ${error.message}`);

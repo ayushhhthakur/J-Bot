@@ -32,7 +32,35 @@ async function sendNotification(message, context) {
         });
         context.log('✅ Notification sent to Telegram');
     } catch (error) {
-        context.warn(`⚠️ Failed to send notification: ${error.message}`);
+        const details = error.response?.data ? ` | ${JSON.stringify(error.response.data)}` : '';
+        context.warn(`⚠️ Failed to send notification: ${error.message}${details}`);
+    }
+}
+
+/**
+ * Format date to readable format
+ * @param {string|number|Date} date - Date to format
+ * @returns {string} - Formatted date and time
+ */
+function formatJobDate(date) {
+    if (!date) return 'Date not specified';
+    
+    try {
+        let dateObj;
+        if (typeof date === 'number') {
+            dateObj = date < 10000000000 ? new Date(date * 1000) : new Date(date);
+        } else {
+            dateObj = new Date(date);
+        }
+        
+        if (isNaN(dateObj.getTime())) return 'Date not specified';
+        
+        // Format: "23 Apr, 2pm" or "23 Apr, 14:30"
+        const options = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+        const formatted = dateObj.toLocaleString('en-IN', options);
+        return formatted;
+    } catch (e) {
+        return 'Date not specified';
     }
 }
 
@@ -55,16 +83,31 @@ async function sendJobAlert(job, matchedKeyword, context) {
     const jobType = job.job_type || 'Full-time';
     const score = job.relevanceScore || 0;
     const relevanceIndicator = getRelevanceIndicator(score);
+    const hiringDate = formatJobDate(job.date);
+    
+    // Build apply link with better formatting
+    const applyLink = job.url ? `<a href="${job.url}">Apply Here →</a>` : 'Link not available';
+    
+    // Add tags if present (walk-in, etc)
+    const tagsDisplay = (job.tags && job.tags.length > 0) 
+        ? `\n🏷️ ${job.tags.join(', ')}`
+        : '';
     
     const message = `🔥 <b>${job.title || 'Untitled Position'}</b>
 
-🏢 ${job.company_name || 'N/A'}
+<b>Company Details</b>
+🏢 <b>${job.company_name || 'N/A'}</b>
 📍 ${job.location || 'Remote'}
+
+<b>Job Details</b>
 💼 ${jobType} | ${experience}
 💰 ${salary}
+📅 Posted: ${hiringDate}
 
-${relevanceIndicator}
-🔗 ${job.url || 'URL not available'}`;
+${relevanceIndicator}${tagsDisplay}
+
+<b>Apply Now</b>
+${applyLink}`;
 
     try {
         const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
@@ -78,7 +121,8 @@ ${relevanceIndicator}
         });
         context.log(`✅ Job alert sent: ${job.title}`);
     } catch (error) {
-        context.error(`❌ Failed to send job alert: ${error.message}`);
+        const details = error.response?.data ? ` | ${JSON.stringify(error.response.data)}` : '';
+        context.error(`❌ Failed to send job alert: ${error.message}${details}`);
         throw error;
     }
 }
@@ -149,5 +193,6 @@ module.exports = {
     sendJobAlert,
     sendSearchStarted,
     sendSearchComplete,
-    sendNoJobsFound
+    sendNoJobsFound,
+    formatJobDate
 };

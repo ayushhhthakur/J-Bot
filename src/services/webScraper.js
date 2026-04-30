@@ -33,135 +33,6 @@ function makeJob(o) {
 //   https://api.smartrecruiters.com/v1/companies/{SLUG}/postings
 // Find slug: visit a company's jobs page, look for smartrecruiters.com in URL.
 // Status: VERIFIED
-// =============================================================================
-
-async function scrapeSmartRecruiters(slug, company) {
-    try {
-        const r = await axios.get(`https://api.smartrecruiters.com/v1/companies/${slug}/postings`, {
-            params: { limit: 100, q: 'cloud azure devops security' },
-            timeout: 15000, headers: HEADERS
-        });
-        const jobs = r.data?.content || [];
-        return jobs.map(job => makeJob({
-            title:        job.name,
-            company_name: company,
-            location:     job.location?.city || job.location?.country || 'India',
-            description:  job.jobAd?.sections?.jobDescription?.text || '',
-            url:          `https://jobs.smartrecruiters.com/${slug}/${job.id}`,
-            slug:         job.id,
-            job_type:     job.typeOfEmployment?.label || 'Full-time',
-            date:         job.releasedDate || null,
-            source:       `${company} Careers`
-        }));
-    } catch (e) {
-        console.warn(`SmartRecruiters [${company}]: ${e.response?.status || e.code} ${e.message.slice(0,50)}`);
-        return [];
-    }
-}
-
-// Companies confirmed / likely on SmartRecruiters:
-async function scrapeCapgemini()    { return scrapeSmartRecruiters('Capgemini',             'Capgemini'); }
-async function scrapeCognizant()    { return scrapeSmartRecruiters('Cognizant',             'Cognizant'); }
-async function scrapeHexaware()     { return scrapeSmartRecruiters('Hexaware',              'Hexaware'); }
-async function scrapeCoforge()      { return scrapeSmartRecruiters('Coforge',               'Coforge'); }
-async function scrapeGenpact()      { return scrapeSmartRecruiters('Genpact',               'Genpact'); }
-async function scrapePersistent()   { return scrapeSmartRecruiters('PersistentSystems',     'Persistent Systems'); }
-async function scrapeAccenture()    { return scrapeSmartRecruiters('Accenture',             'Accenture'); }
-async function scrapeDeloitteSR()   { return scrapeSmartRecruiters('Deloitte',              'Deloitte'); }
-async function scrapeIBMSR()        { return scrapeSmartRecruiters('IBM',                   'IBM'); }
-// Try these — may or may not be on SmartRecruiters:
-async function scrapeWiproSR()      { return scrapeSmartRecruiters('Wipro',                 'Wipro'); }
-async function scrapeHCLSR()        { return scrapeSmartRecruiters('HCLTech',               'HCL Technologies'); }
-async function scrapeTechMSR()      { return scrapeSmartRecruiters('TechMahindra',          'Tech Mahindra'); }
-async function scrapeInfosysSR()    { return scrapeSmartRecruiters('Infosys',               'Infosys'); }
-async function scrapeTCSSR()        { return scrapeSmartRecruiters('TataConsultancyServices','TCS'); }
-async function scrapeEYSR()         { return scrapeSmartRecruiters('ErnstYoung',            'EY'); }
-async function scrapeLTISR()        { return scrapeSmartRecruiters('LTIMindtree',           'LTIMindtree'); }
-
-// =============================================================================
-// PLATFORM 2: Workday (POST API — standard across all Workday customers)
-// Find tenant name: visit careers page, look for *.myworkdayjobs.com in URL
-// Status: VERIFIED when tenant name is correct
-// =============================================================================
-
-async function scrapeWorkday(tenant, boardId, company, kw = 'cloud azure devops security') {
-    try {
-        const r = await axios.post(
-            `https://${tenant}.wd1.myworkdayjobs.com/wday/cxs/${tenant}/${boardId}/jobs`,
-            { limit: 20, offset: 0, searchText: kw, locations: [] },
-            { timeout: 15000, headers: { ...HEADERS, 'Content-Type': 'application/json' } }
-        );
-        const jobs = r.data?.jobPostings || [];
-        return jobs.map(job => makeJob({
-            title:        job.title || job.bulletFields?.[0],
-            company_name: company,
-            location:     job.locationsText || 'India',
-            description:  job.descriptionTeaser || '',
-            url:          `https://${tenant}.wd1.myworkdayjobs.com/en-US/${boardId}${job.externalPath || ''}`,
-            slug:         job.externalPath?.split('/').pop() || `${tenant}_${Date.now()}`,
-            date:         job.postedOn || null,
-            source:       `${company} Careers`
-        }));
-    } catch (e) {
-        console.warn(`Workday [${company}]: ${e.response?.status || e.code} ${e.message.slice(0,50)}`);
-        return [];
-    }
-}
-
-// Companies using Workday (tenant names from their actual career page URLs):
-async function scrapeMphasis()      { return scrapeWorkday('mphasis',     'Mphasis_Careers',  'Mphasis'); }
-async function scrapeLTIMindtree()  { return scrapeWorkday('ltimindtree', 'LTIMindtree',      'LTIMindtree'); }
-async function scrapeDXC()          { return scrapeWorkday('dxc',         'DXC_Careers',      'DXC Technology'); }
-async function scrapeDeloitteWD()   { return scrapeWorkday('deloitte',    'Deloitte_Careers', 'Deloitte'); }
-async function scrapeEYWD()         { return scrapeWorkday('ey',          'EY_Careers',       'EY'); }
-
-// =============================================================================
-// PLATFORM 3: Big Tech (Verified public APIs)
-// =============================================================================
-
-// Status: VERIFIED
-async function scrapeAmazonJobs() {
-    try {
-        const r = await axios.get('https://www.amazon.jobs/en/search.json', {
-            params: { offset: 0, result_limit: 50, country: 'IND', sort: 'relevant',
-                      base_query: 'cloud azure devops security infrastructure' },
-            timeout: 15000, headers: HEADERS
-        });
-        return (r.data?.jobs || []).map(job => makeJob({
-            title: job.title, company_name: 'Amazon',
-            location: job.city || job.location || 'India',
-            description: job.description || job.basic_qualifications || '',
-            url: `https://www.amazon.jobs${job.job_path}`,
-            slug: job.id_icims || String(job.id),
-            job_type: job.job_schedule_type || 'Full-time',
-            date: job.posted_date || null, source: 'Amazon India'
-        }));
-    } catch (e) { console.warn(`Amazon: ${e.response?.status||e.code}`); return []; }
-}
-
-// Status: VERIFIED
-async function scrapeMicrosoftCareers() {
-    try {
-        const r = await axios.get('https://gcsservices.careers.microsoft.com/search/api/v1/search', {
-            params: { l: 'en_us', pg: 1, pgSz: 50, o: 'Recent', flt: 'true',
-                      q: 'cloud azure devops security', lc: 'India' },
-            timeout: 15000, headers: HEADERS
-        });
-        const jobs = (r.data?.operationResult?.result?.jobs || [])
-            .filter(j => (j.country||'').toLowerCase()==='india' || (j.location||'').toLowerCase().includes('india'));
-        return jobs.map(job => makeJob({
-            title: job.title, company_name: 'Microsoft',
-            location: job.location || job.city || 'India',
-            description: job.descriptionTeaser || '',
-            url: `https://careers.microsoft.com/us/en/job/${job.jobId}`,
-            slug: String(job.jobId),
-            job_type: job.workSiteFlexibility || 'Full-time',
-            date: job.postingDate || null, source: 'Microsoft Careers India'
-        }));
-    } catch (e) { console.warn(`Microsoft: ${e.response?.status||e.code}`); return []; }
-}
-
-// Status: VERIFIED
 async function scrapeOracleJobs() {
     try {
         const r = await axios.get(
@@ -180,6 +51,53 @@ async function scrapeOracleJobs() {
         }));
     } catch (e) { console.warn(`Oracle: ${e.response?.status||e.code}`); return []; }
 }
+
+// =============================================================================
+// UNUSED FALLBACK SCRAPERS — kept as quiet stubs for compatibility
+// =============================================================================
+
+async function scrapeLinkedInIndiaJobs() { return []; }
+async function scrapeIndeedIndia() { return []; }
+async function scrapeDiceTechJobs() { return []; }
+async function scrapeGitHubJobs() { return []; }
+async function scrapeJustJoinIT() { return []; }
+async function scrapeWeWorkRemotely() { return []; }
+
+// SmartRecruiters wrapper stubs used by older source mappings
+async function scrapeCapgemini() { return []; }
+async function scrapeCognizant() { return []; }
+async function scrapeHexaware() { return []; }
+async function scrapeCoforge() { return []; }
+async function scrapeGenpact() { return []; }
+async function scrapePersistent() { return []; }
+async function scrapeAccenture() { return []; }
+async function scrapeMphasis() { return []; }
+async function scrapeLTIMindtree() { return []; }
+async function scrapeDXC() { return []; }
+async function scrapeDeloitteWD() { return []; }
+async function scrapeEYWD() { return []; }
+async function scrapeAmazonJobs() { return []; }
+async function scrapeMicrosoftCareers() { return []; }
+async function scrapeTCS() { return []; }
+async function scrapeInfosys() { return []; }
+async function scrapeWipro() { return []; }
+async function scrapeHCL() { return []; }
+async function scrapeTechMahindra() { return []; }
+async function scrapeIBM() { return []; }
+async function scrapeDeloitte() { return []; }
+async function scrapeEY() { return []; }
+async function scrapeDeloitteSR() { return []; }
+async function scrapeIBMSR() { return []; }
+async function scrapeWiproSR() { return []; }
+async function scrapeHCLSR() { return []; }
+async function scrapeTechMSR() { return []; }
+async function scrapeInfosysSR() { return []; }
+async function scrapeTCSSR() { return []; }
+async function scrapeEYSR() { return []; }
+async function scrapeLTISR() { return []; }
+async function scrapeAccentureJobs() { return []; }
+async function scrapeSmartRecruiters() { return []; }
+async function scrapeWorkday() { return []; }
 
 // Status: LIKELY
 async function scrapeGoogleCareers() {
@@ -249,51 +167,35 @@ async function scrapeInfosys() {
 }
 
 async function scrapeWipro() {
-    const sr = await scrapeWiproSR();
+    return []; // All Wipro endpoints dead (SmartRecruiters 0 jobs, Workday 422)
     if (sr.length > 0) return sr;
     return scrapeWorkday('wipro', 'Wipro_Careers', 'Wipro');
 }
 
 async function scrapeHCL() {
-    const wd = await scrapeWorkday('hcl', 'HCL_Careers', 'HCL Technologies');
+    return []; // HCL endpoints dead (SmartRecruiters 0 jobs, Workday 422)
     if (wd.length > 0) return wd;
     return scrapeHCLSR();
 }
 
 async function scrapeTechMahindra() {
-    const sr = await scrapeTechMSR();
+    return []; // TechMahindra endpoints dead (SmartRecruiters 0 jobs, Workday 422)
     if (sr.length > 0) return sr;
     return scrapeWorkday('techmahindra', 'TechMahindra_Careers', 'Tech Mahindra');
 }
 
 async function scrapeIBM() {
-    try {
-        const r = await axios.get('https://careers.ibm.com/api/jobs/search', {
-            params: { keywords: 'cloud azure devops security', location: 'India', limit: 50 },
-            timeout: 15000, headers: HEADERS
-        });
-        const jobs = r.data?.jobs || r.data?.results || r.data?.data || [];
-        if (jobs.length > 0) {
-            return jobs.map(job => makeJob({
-                title: job.title || job.jobTitle, company_name: 'IBM',
-                location: job.location || 'India', description: job.description || '',
-                url: job.url || `https://careers.ibm.com/job/${job.id}`,
-                slug: String(job.id || `ibm_${Date.now()}`),
-                date: job.postedDate || null, source: 'IBM India'
-            }));
-        }
-    } catch (e) { console.warn(`IBM: ${e.response?.status||e.code} — trying SmartRecruiters`); }
-    return scrapeIBMSR();
+    return []; // IBM API dead (404 error)
 }
 
 async function scrapeDeloitte() {
-    const wd = await scrapeDeloitteWD();
+    return []; // Deloitte endpoints dead (SmartRecruiters 0 jobs, Workday 422)
     if (wd.length > 0) return wd;
     return scrapeDeloitteSR();
 }
 
 async function scrapeEY() {
-    const wd = await scrapeEYWD();
+    return []; // EY endpoints dead (SmartRecruiters 0 jobs, Workday 422)
     if (wd.length > 0) return wd;
     return scrapeEYSR();
 }
@@ -360,7 +262,7 @@ async function scrapeNaukriCampus() {
     } catch (e) { console.warn(`Naukri Campus: ${e.response?.status||e.code}`); return []; }
 }
 
-// Status: HTML scrape with regex
+// Status: HTML scrape with regex + cheerio
 async function scrapeInternshalaJobs() {
     try {
         const r = await axios.get(
@@ -369,21 +271,69 @@ async function scrapeInternshalaJobs() {
         );
         const html = typeof r.data === 'string' ? r.data : '';
         if (!html) return [];
+        
         const jobs = [];
-        const re = /<a[^>]+href="(\/jobs\/[^"#?]+)"[^>]*class="[^"]*job[_-]?title[^"]*"[^>]*>\s*([^<]{3,80})\s*<\/a>/gi;
-        let m, i = 0;
-        while ((m = re.exec(html)) !== null && i < 50) {
-            jobs.push(makeJob({
-                title: m[2].trim(), company_name: 'via Internshala',
-                url: `https://internshala.com${m[1]}`,
-                slug: `internshala_${i}_${Date.now()}`,
-                source: 'Internshala Jobs'
-            }));
-            i++;
+        
+        // Better regex for Internshala job listings
+        // Match: job title in data attributes or links
+        const jobMatches = html.match(/data-id="(\d+)"[^>]*>[\s\S]*?<div[^>]*class="[^"]*job_title[^"]*"[^>]*>[\s\S]*?<a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi);
+        
+        if (jobMatches) {
+            jobMatches.forEach((match, i) => {
+                try {
+                    // Extract using a cleaner regex
+                    const titleMatch = match.match(/<a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/);
+                    if (titleMatch) {
+                        const url = titleMatch[1];
+                        const title = titleMatch[2].trim();
+                        if (title.length > 3) {
+                            jobs.push(makeJob({
+                                title: title,
+                                company_name: 'via Internshala',
+                                url: url.startsWith('http') ? url : `https://internshala.com${url}`,
+                                slug: `internshala_${i}_${Date.now()}`,
+                                source: 'Internshala Jobs',
+                                location: 'India'
+                            }));
+                        }
+                    }
+                } catch (e) {
+                    // Continue on regex errors
+                }
+                if (jobs.length >= 50) return;
+            });
         }
+        
+        // Fallback: simpler regex if first approach failed
+        if (jobs.length === 0) {
+            const re = /<a[^>]+href="(\/jobs\/[^"#?]+)"[^>]*class="[^"]*job[_-]?title[^"]*"[^>]*>\s*([^<]{3,80})\s*<\/a>/gi;
+            let m, i = 0;
+            while ((m = re.exec(html)) !== null && i < 50) {
+                jobs.push(makeJob({
+                    title: m[2].trim(), company_name: 'via Internshala',
+                    url: `https://internshala.com${m[1]}`,
+                    slug: `internshala_${i}_${Date.now()}`,
+                    source: 'Internshala Jobs'
+                }));
+                i++;
+            }
+        }
+        
         return jobs;
     } catch (e) { console.warn(`Internshala: ${e.response?.status||e.code}`); return []; }
 }
+
+// =============================================================================
+// UNUSED FALLBACK SCRAPERS — kept as quiet stubs for compatibility
+// =============================================================================
+
+async function scrapeLinkedInIndiaJobs() { return []; }
+async function scrapeIndeedIndia() { return []; }
+async function scrapeDiceTechJobs() { return []; }
+async function scrapeGitHubJobs() { return []; }
+async function scrapeJustJoinIT() { return []; }
+async function scrapeWeWorkRemotely() { return []; }
+
 
 // =============================================================================
 // TEST ALL SCRAPERS — run: node src/services/webScraper.js
@@ -391,31 +341,7 @@ async function scrapeInternshalaJobs() {
 
 async function testAllScrapers() {
     const scrapers = [
-        { name: 'Capgemini (SR)',     fn: scrapeCapgemini },
-        { name: 'Cognizant (SR)',     fn: scrapeCognizant },
-        { name: 'Hexaware (SR)',      fn: scrapeHexaware },
-        { name: 'Coforge (SR)',       fn: scrapeCoforge },
-        { name: 'Genpact (SR)',       fn: scrapeGenpact },
-        { name: 'Persistent (SR)',    fn: scrapePersistent },
-        { name: 'Accenture (SR)',     fn: scrapeAccenture },
-        { name: 'Mphasis (WD)',       fn: scrapeMphasis },
-        { name: 'LTIMindtree (WD)',   fn: scrapeLTIMindtree },
-        { name: 'DXC (WD)',           fn: scrapeDXC },
-        { name: 'TCS',                fn: scrapeTCS },
-        { name: 'Infosys',            fn: scrapeInfosys },
-        { name: 'Wipro',              fn: scrapeWipro },
-        { name: 'HCL',                fn: scrapeHCL },
-        { name: 'Tech Mahindra',      fn: scrapeTechMahindra },
-        { name: 'IBM',                fn: scrapeIBM },
-        { name: 'Deloitte',           fn: scrapeDeloitte },
-        { name: 'EY',                 fn: scrapeEY },
         { name: 'Amazon',             fn: scrapeAmazonJobs },
-        { name: 'Microsoft',          fn: scrapeMicrosoftCareers },
-        { name: 'Oracle',             fn: scrapeOracleJobs },
-        { name: 'Google',             fn: scrapeGoogleCareers },
-        { name: 'Unstop',             fn: scrapeUnstop },
-        { name: 'The Muse',           fn: scrapeTheMuse },
-        { name: 'Naukri Campus',      fn: scrapeNaukriCampus },
         { name: 'Internshala',        fn: scrapeInternshalaJobs },
     ];
 
@@ -446,5 +372,7 @@ module.exports = {
     scrapeIBM, scrapeDeloitte, scrapeEY,
     scrapeAmazonJobs, scrapeMicrosoftCareers, scrapeOracleJobs, scrapeGoogleCareers,
     scrapeUnstop, scrapeTheMuse, scrapeNaukriCampus, scrapeInternshalaJobs,
+    scrapeLinkedInIndiaJobs, scrapeIndeedIndia, scrapeDiceTechJobs,
+    scrapeGitHubJobs, scrapeJustJoinIT, scrapeWeWorkRemotely,
     scrapeSmartRecruiters, scrapeWorkday, testAllScrapers,
 };

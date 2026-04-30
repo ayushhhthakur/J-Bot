@@ -59,10 +59,7 @@ function getTimeWindow() {
  * - Stores lastRunAt timestamp in metadata table
  * - This eliminates rescanning the same jobs every day
  */
-app.timer('jobChecker', {
-    schedule: '0 30 4 * * *', // 10:00 AM IST = 4:30 AM UTC
-    runOnStartup: false,
-    handler: async (myTimer, context) => {
+async function runJobChecker(myTimer, context, options = {}) {
         const startTime = new Date();
         context.log('\n' + '='.repeat(60));
         context.log('🚀 J-Bot Job Alert Started at:', startTime.toISOString());
@@ -80,18 +77,31 @@ app.timer('jobChecker', {
         const seenInThisRun = new Set();
 
         try {
-            // === STEP 1: Initialize Azure Table Storage ===
-            const connectionString = process.env.AzureWebJobsStorage;
-            if (!connectionString) {
-                throw new Error('AzureWebJobsStorage connection string not configured');
+            const skipStorage = !!options.skipStorage;
+
+            if (skipStorage) {
+                context.log('🧪 Manual test mode: skipping Azure Table Storage initialization');
             }
 
-            const { jobsClient, metaClient } = initializeTableClients(connectionString);
-            await ensureTablesExist(jobsClient, metaClient, context);
+            // === STEP 1: Initialize Azure Table Storage ===
+            let jobsClient = null;
+            let metaClient = null;
+            let lastRunTimestamp = null;
 
-            // === STEP 2: Get last run metadata (for incremental scanning) ===
-            const lastRunMeta = await getLastRunMetadata(metaClient, context);
-            const lastRunTimestamp = lastRunMeta?.lastRunAt || null;
+            if (!skipStorage) {
+                const connectionString = process.env.AzureWebJobsStorage;
+                if (!connectionString) {
+                    throw new Error('AzureWebJobsStorage connection string not configured');
+                }
+
+                ({ jobsClient, metaClient } = initializeTableClients(connectionString));
+                await ensureTablesExist(jobsClient, metaClient, context);
+
+                // === STEP 2: Get last run metadata (for incremental scanning) ===
+                const lastRunMeta = await getLastRunMetadata(metaClient, context);
+                lastRunTimestamp = lastRunMeta?.lastRunAt || null;
+            }
+
             const fallbackDays = getTimeWindow();
             
             const isIncremental = !!lastRunTimestamp;
@@ -141,7 +151,7 @@ app.timer('jobChecker', {
                 }
                 
                 // Check storage for duplicates
-                const alreadyProcessed = await isJobProcessed(jobsClient, jobId, context);
+                const alreadyProcessed = skipStorage ? false : await isJobProcessed(jobsClient, jobId, context);
                 if (alreadyProcessed) {
                     context.log(`⏭️  Skipping duplicate: ${job.title}`);
                     stats.duplicatesSkipped++;
@@ -178,7 +188,9 @@ app.timer('jobChecker', {
                 for (const job of matchedJobs) {
                     try {
                         await sendJobAlert(job, job.matchedKeyword, context);
-                        await markJobAsProcessed(jobsClient, job, context);
+                        if (!skipStorage) {
+                            await markJobAsProcessed(jobsClient, job, context);
+                        }
                         stats.totalSent++;
                     } catch (error) {
                         context.error(`❌ Failed to process job ${job.title}: ${error.message}`);
@@ -194,7 +206,9 @@ app.timer('jobChecker', {
             // === STEP 9: Update metadata (CRITICAL for incremental scanning) ===
             const duration = ((new Date() - startTime) / 1000).toFixed(2);
             stats.executionTimeSeconds = parseFloat(duration);
-            await updateMetadata(metaClient, stats, context);
+            if (!skipStorage) {
+                await updateMetadata(metaClient, stats, context);
+            }
 
             // === STEP 10: Summary ===
             context.log('\n' + '='.repeat(60));
@@ -215,5 +229,12 @@ app.timer('jobChecker', {
             context.error('='.repeat(60) + '\n');
             throw error;
         }
-    }
+}
+
+app.timer('jobChecker', {
+    schedule: '0 30 4 * * *', // 10:00 AM IST = 4:30 AM UTC
+    runOnStartup: false,
+    handler: (myTimer, context) => runJobChecker(myTimer, context)
 });
+
+module.exports = { runJobChecker };

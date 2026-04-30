@@ -98,6 +98,68 @@ function isFresherFriendlyCompany(job) {
 }
 
 /**
+ * Check whether the job matches the desired experience band.
+ * Accepts internships, junior entry-level/fresher roles, explicit 1-3 year ranges,
+ * and a small fallback for fresher-friendly companies with clearly junior tech roles.
+ * Rejects jobs that clearly require more than 3 years.
+ * @param {Object} job - Job object
+ * @returns {boolean}
+ */
+function matchesDesiredExperience(job) {
+    const title = (job.title || '').toLowerCase();
+    const description = (job.description || '').toLowerCase();
+    const text = `${title} ${description}`;
+
+    if ((job.job_type || '').toLowerCase().includes('intern')) {
+        return true;
+    }
+
+    if (containsKeyword(text, ENTRY_LEVEL_KEYWORDS)) {
+        return true;
+    }
+
+    // Capture ranges like 1-3 years, 1 to 3 years, 2-3 yrs, etc.
+    const rangeMatches = [...text.matchAll(/(\d+)\s*(?:-|to)\s*(\d+)\s*\+?\s*(?:years?|yrs?)/g)];
+    if (rangeMatches.length > 0) {
+        return rangeMatches.some(match => {
+            const minYears = parseInt(match[1], 10);
+            const maxYears = parseInt(match[2], 10);
+            return minYears >= 0 && maxYears <= 3;
+        });
+    }
+
+    // Single-number patterns like "1 year" or "3 years"
+    const singleYearMatches = [...text.matchAll(/(\d+)\s*\+?\s*(?:years?|yrs?)/g)];
+    if (singleYearMatches.length > 0) {
+        return singleYearMatches.some(match => {
+            const years = parseInt(match[1], 10);
+            return years >= 1 && years <= 3;
+        });
+    }
+
+    const juniorTitleKeywords = [
+        'junior', 'associate', 'trainee', 'entry', 'fresher', 'graduate', 'intern',
+        'associate consultant', 'associate engineer', 'engineer trainee',
+        'graduate engineer trainee', 'technology analyst', 'technical analyst',
+        'cloud associate', 'cloud trainee', 'cloud support engineer',
+        'devops trainee', 'security analyst', 'devsecops trainee',
+        'support engineer', 'analyst trainee', 'technical associate'
+    ];
+
+    if (containsKeyword(title, juniorTitleKeywords)) {
+        return true;
+    }
+
+    // Lightweight fallback: if the company is known to hire freshers and the role is
+    // clearly one of our target technical tracks, keep it even when experience is omitted.
+    if (isFresherFriendlyCompany(job) && containsKeyword(title, INCLUDE_KEYWORDS)) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
  * Main job filtering function
  * Multi-stage filter: location → technical → keywords → experience
  * @param {Object} job - Job object
@@ -148,27 +210,9 @@ function filterJob(job) {
         return { match: false, reason: 'Does not contain required keywords' };
     }
     
-    // Stage 6: Check experience level (0-2 years)
-    const isEntryLevel = containsKeyword(combinedText, ENTRY_LEVEL_KEYWORDS);
-    
-    // Extract years mentioned
-    const yearsMatch = combinedText.match(/(\d+)\s*\+?\s*years?/gi);
-    let hasAcceptableExperience = true;
-    
-    if (yearsMatch) {
-        const years = yearsMatch.map(match => parseInt(match.match(/(\d+)/)[1]));
-        const maxYears = Math.max(...years);
-        
-        if (maxYears > 2) {
-            hasAcceptableExperience = false;
-        }
-    }
-    
-    // Accept if: explicitly entry level OR no experience mentioned OR up to 2 years
-    const noExperienceMentioned = !combinedText.match(/\d+\s*\+?\s*years?/i);
-    
-    if (!isEntryLevel && !noExperienceMentioned && !hasAcceptableExperience) {
-        return { match: false, reason: 'Requires more than 2 years experience' };
+    // Stage 6: Check experience level (internships, junior roles, or explicit 1-3 years only)
+    if (!matchesDesiredExperience(job)) {
+        return { match: false, reason: 'Does not match internship/junior/1-3 years filter' };
     }
     
     // Find which keyword matched

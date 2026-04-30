@@ -185,16 +185,16 @@ function extractExperience(job) {
     const text = `${job.title} ${job.description}`.toLowerCase();
     
     // Check for entry level indicators
-    if (text.match(/intern|internship|fresher|graduate|entry.?level|0.?1.?year|0.?year|1.?year|1.?2.?years?|0.?2.?years?/)) {
-        return 'Entry Level / Fresher (0-2 years)';
+    if (text.match(/intern|internship|fresher|graduate|entry.?level|0.?1.?year|0.?year|1.?year|1.?2.?years?|1.?3.?years?|0.?2.?years?/)) {
+        return 'Internship / Entry Level / 1-3 years';
     }
     
     // Extract years mentioned
     const yearsMatch = text.match(/(\d+)\+?\s*years?/);
     if (yearsMatch) {
         const years = parseInt(yearsMatch[1]);
-        if (years <= 2) {
-            return 'Entry Level / Fresher (0-2 years)';
+        if (years <= 3) {
+            return 'Internship / Entry Level / 1-3 years';
         }
         return `${years}+ years`;
     }

@@ -16,7 +16,8 @@
   "dependencies": {
     "@azure/functions": "^4.0.0",
     "@azure/data-tables": "^13.2.2",
-    "axios": "^1.6.7"
+    "axios": "^1.6.7",
+    "cheerio": "^1.0.0-rc.12"
   },
   "devDependencies": {
     "azure-functions-core-tools": "^4.x"
