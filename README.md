@@ -32,7 +32,7 @@ Azure Function-based Telegram bot that searches for entry-level Azure/Cloud/Secu
 
 1. **Clone and install**
    ```bash
-   git clone https://github.com/yourusername/j-bot.git
+   git clone https://github.com/ayushhhthakur/j-bot.git
    cd j-bot
    npm install
    ```
